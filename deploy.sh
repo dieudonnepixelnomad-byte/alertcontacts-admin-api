@@ -55,6 +55,14 @@ php artisan optimize
 echo "🔐 Configuration des permissions..."
 chmod -R 755 storage
 chmod -R 755 bootstrap/cache
+chmod -R 755 public
+chmod 644 public/.htaccess
+chmod 644 public/index.php
+
+# Vérification des permissions critiques
+echo "🔍 Vérification des permissions..."
+ls -la public/ | head -5
+ls -la storage/ | head -3
 
 echo "✅ Déploiement terminé avec succès!"
 echo "📋 N'oubliez pas de:"

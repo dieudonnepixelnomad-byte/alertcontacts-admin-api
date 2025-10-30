@@ -23,3 +23,45 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Sécurité et compatibilité pour éviter 403
+<IfModule mod_dir.c>
+    DirectoryIndex index.php index.html
+</IfModule>
+
+# Permissions pour les fichiers statiques
+<FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
+    <IfModule mod_expires.c>
+        ExpiresActive On
+        ExpiresDefault "access plus 1 month"
+    </IfModule>
+    <IfModule mod_headers.c>
+        Header set Cache-Control "public, max-age=2592000"
+    </IfModule>
+</FilesMatch>
+
+# Bloquer l'accès aux fichiers sensibles
+<FilesMatch "\.(env|log|sql|md|txt|lock|json|yml|yaml)$">
+    <IfVersion ">= 2.4">
+        Require all denied
+    </IfVersion>
+    <IfVersion "< 2.4">
+        Order allow,deny
+        Deny from all
+    </IfVersion>
+</FilesMatch>
+
+# Autoriser l'accès aux dossiers nécessaires
+<IfModule mod_authz_core.c>
+    <Directory />
+        Options FollowSymLinks
+        AllowOverride None
+        <IfVersion ">= 2.4">
+            Require all granted
+        </IfVersion>
+        <IfVersion "< 2.4">
+            Order allow,deny
+            Allow from all
+        </IfVersion>
+    </Directory>
+</IfModule>
