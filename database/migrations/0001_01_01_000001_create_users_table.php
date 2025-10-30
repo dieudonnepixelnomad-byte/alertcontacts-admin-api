@@ -14,11 +14,34 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email', 255)->unique();
+            $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->string('password')->nullable(); // Nullable pour les connexions via Firebase
+            
+            // Champs Firebase
+            $table->string('firebase_uid')->nullable()->unique();
+            $table->string('provider')->default('email'); // email, google, apple
+            $table->string('avatar_url')->nullable();
+            $table->string('phone_number')->nullable();
+            
+            // Champs FCM (Firebase Cloud Messaging)
+            $table->text('fcm_token')->nullable();
+            $table->timestamp('fcm_token_updated_at')->nullable();
+            $table->string('fcm_platform')->nullable(); // ios, android, web
+            
+            // Heures de silence
+            $table->time('quiet_hours_start')->nullable();
+            $table->time('quiet_hours_end')->nullable();
+            $table->string('timezone')->default('Europe/Paris');
+            $table->boolean('quiet_hours_enabled')->default(false);
+            
             $table->rememberToken();
             $table->timestamps();
+            
+            // Index
+            $table->index('fcm_token');
+            $table->index('firebase_uid');
+            $table->index('provider');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
