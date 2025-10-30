@@ -135,8 +135,8 @@ class DangerZonesController extends Controller
                         'title' => $zone->title,
                         'description' => $zone->description,
                         'center' => [
-                            'lat' => $zone->center->latitude,
-                            'lng' => $zone->center->longitude,
+                            'lat' => $zone->center_lat,
+                            'lng' => $zone->center_lng,
                         ],
                         'radius_meters' => $zone->radius_m,
                         'severity' => $zone->severity,
@@ -251,7 +251,8 @@ class DangerZonesController extends Controller
             $dangerZone = DangerZone::create([
                 'title' => $data['title'],
                 'description' => $data['description'] ?? null,
-                'center' => new Point($data['center']['lat'], $data['center']['lng'], 4326),
+                'center_lat' => $data['center']['lat'],
+                'center_lng' => $data['center']['lng'],
                 'radius_m' => $data['radius_m'],
                 'severity' => $data['severity'],
                 'danger_type' => $data['danger_type'],
@@ -273,8 +274,8 @@ class DangerZonesController extends Controller
                 'name' => $dangerZone->title,
                 'type' => $dangerZone->danger_type,
                 'severity' => $dangerZone->severity,
-                'latitude' => $dangerZone->center->latitude,
-                'longitude' => $dangerZone->center->longitude
+                'latitude' => $dangerZone->center_lat,
+                'longitude' => $dangerZone->center_lng
             ], $request);
 
             DB::commit();
@@ -284,8 +285,8 @@ class DangerZonesController extends Controller
                 'title' => $dangerZone->title,
                 'description' => $dangerZone->description,
                 'center' => [
-                    'lat' => $dangerZone->center->latitude,
-                    'lng' => $dangerZone->center->longitude,
+                    'lat' => $dangerZone->center_lat,
+                    'lng' => $dangerZone->center_lng,
                 ],
                 'radius_meters' => $dangerZone->radius_m,
                 'severity' => $dangerZone->severity,
@@ -345,8 +346,8 @@ class DangerZonesController extends Controller
                 'title' => $dangerZone->title,
                 'description' => $dangerZone->description,
                 'center' => [
-                    'lat' => $dangerZone->center->latitude,
-                    'lng' => $dangerZone->center->longitude,
+                    'lat' => $dangerZone->center_lat,
+                    'lng' => $dangerZone->center_lng,
                 ],
                 'radius_meters' => $dangerZone->radius_m,
                 'severity' => $dangerZone->severity,
@@ -472,7 +473,8 @@ class DangerZonesController extends Controller
             $dangerZone->update([
                 'title' => $validated['title'],
                 'description' => $validated['description'],
-                'center' => new Point($validated['center']['lat'], $validated['center']['lng']),
+                'center_lat' => $validated['center']['lat'],
+                'center_lng' => $validated['center']['lng'],
                 'radius_m' => $validated['radius_m'],
                 'severity' => $validated['severity'],
                 'danger_type' => $validated['danger_type'],
@@ -485,8 +487,8 @@ class DangerZonesController extends Controller
                 'title' => $dangerZone->title,
                 'description' => $dangerZone->description,
                 'center' => [
-                    'lat' => $dangerZone->center->latitude,
-                    'lng' => $dangerZone->center->longitude,
+                    'lat' => $dangerZone->center_lat,
+                    'lng' => $dangerZone->center_lng,
                 ],
                 'radius_meters' => $dangerZone->radius_m,
                 'severity' => $dangerZone->severity,
@@ -589,8 +591,8 @@ class DangerZonesController extends Controller
                 [
                     'title' => $dangerZone->title,
                     'severity' => $dangerZone->severity,
-                    'latitude' => $dangerZone->center->latitude,
-                    'longitude' => $dangerZone->center->longitude
+                    'latitude' => $dangerZone->center_lat,
+                    'longitude' => $dangerZone->center_lng
                 ]
             );
 
@@ -703,8 +705,8 @@ class DangerZonesController extends Controller
                 'title' => $dangerZone->title,
                 'description' => $dangerZone->description,
                 'center' => [
-                    'lat' => $dangerZone->center->latitude,
-                    'lng' => $dangerZone->center->longitude,
+                    'lat' => $dangerZone->center_lat,
+                    'lng' => $dangerZone->center_lng,
                 ],
                 'radius_meters' => $dangerZone->radius_m,
                 'severity' => $dangerZone->severity,
@@ -825,48 +827,80 @@ class DangerZonesController extends Controller
             $longitude = $data['longitude'];
             $radius = $data['radius'];
 
-            // Rechercher les zones de danger dans un rayon donné
+            // Rechercher les zones de danger dans un rayon donné en utilisant center_lat et center_lng
             $duplicates = DangerZone::select([
                 'id',
                 'title',
                 'description',
+                'center_lat',
+                'center_lng',
+                'radius_m',
                 'severity',
                 'confirmations',
-                'last_report_at',
-                DB::raw("ST_DISTANCE_SPHERE(center, ST_GeomFromText('POINT({$longitude} {$latitude})', 4326, 'axis-order=long-lat')) as distance")
+                'last_report_at'
             ])
             ->where('is_active', true)
-            ->whereRaw("ST_DISTANCE_SPHERE(center, ST_GeomFromText('POINT({$longitude} {$latitude})', 4326, 'axis-order=long-lat')) <= ?", [$radius])
             ->where('last_report_at', '>=', now()->subDays(30))
-            ->orderBy('last_report_at', 'desc')
             ->get()
+            ->filter(function ($zone) use ($latitude, $longitude, $radius) {
+                // Calcul de la distance avec la formule haversine
+                $earthRadius = 6371000; // Rayon de la Terre en mètres
+                $latFrom = deg2rad($latitude);
+                $lonFrom = deg2rad($longitude);
+                $latTo = deg2rad($zone->center_lat);
+                $lonTo = deg2rad($zone->center_lng);
+                
+                $latDelta = $latTo - $latFrom;
+                $lonDelta = $lonTo - $lonFrom;
+                
+                $a = sin($latDelta / 2) * sin($latDelta / 2) +
+                     cos($latFrom) * cos($latTo) *
+                     sin($lonDelta / 2) * sin($lonDelta / 2);
+                $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+                
+                $distance = $earthRadius * $c;
+                $zone->distance = $distance;
+                
+                return $distance <= $radius;
+            })
+            ->sortByDesc('last_report_at')
             ->map(function ($zone) {
                 return [
                     'id' => $zone->id,
                     'title' => $zone->title,
                     'description' => $zone->description,
+                    'center' => [
+                        'lat' => (float) $zone->center_lat,
+                        'lng' => (float) $zone->center_lng,
+                    ],
+                    'radius_meters' => $zone->radius_m,
                     'severity' => $zone->severity,
                     'confirmations' => $zone->confirmations,
                     'distance' => round($zone->distance, 2),
                     'last_report_at' => $zone->last_report_at->toISOString(),
                 ];
-            });
+            })
+            ->values();
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'duplicates' => $duplicates,
-                    'count' => $duplicates->count()
-                ]
+                'data' => $duplicates
             ]);
 
         } catch (\Exception $e) {
+            Log::error('DangerZonesController.checkForDuplicates: ' . $e->getMessage(), [
+                'latitude' => $request->latitude ?? null,
+                'longitude' => $request->longitude ?? null,
+                'radius' => $request->radius ?? null,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'error' => [
                     'code' => 'ZONES_FETCH_ERROR',
-                    'message' => 'Erreur lors de la récupération des zones de danger. ' . $e->getMessage(),
-                    'details' => config('app.debug') ? $e->getMessage() : $e->getMessage()
+                    'message' => 'Erreur lors de la récupération des zones de danger.',
+                    'details' => config('app.debug') ? $e->getMessage() : null
                 ]
             ], 500);
         }

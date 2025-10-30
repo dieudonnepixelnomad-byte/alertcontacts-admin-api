@@ -6,17 +6,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use MatanYadaev\EloquentSpatial\Objects\Point;
-use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
-
 class DangerZone extends Model
 {
-    use HasFactory, HasSpatial;
+    use HasFactory;
 
     protected $fillable = [
         'title',
         'description',
-        'center',
+        'center_lat',
+        'center_lng',
         'radius_m',
         'severity',
         'danger_type',
@@ -27,7 +25,8 @@ class DangerZone extends Model
     ];
 
     protected $casts = [
-        'center' => Point::class,
+        'center_lat' => 'float',
+        'center_lng' => 'float',
         'radius_m' => 'float',
         'confirmations' => 'integer',
         'last_report_at' => 'datetime',
@@ -90,8 +89,16 @@ class DangerZone extends Model
      */
     public function scopeWithinRadius($query, float $lat, float $lng, float $radiusKm)
     {
-        $point = new Point($lat, $lng, 4326);
-        return $query->whereDistanceSphere('center', $point, '<=', $radiusKm * 1000);
+        // Utilisation de la formule haversine pour calculer la distance
+        return $query->whereRaw("
+            (6371 * acos(
+                cos(radians(?)) * 
+                cos(radians(center_lat)) * 
+                cos(radians(center_lng) - radians(?)) + 
+                sin(radians(?)) * 
+                sin(radians(center_lat))
+            )) <= ?
+        ", [$lat, $lng, $lat, $radiusKm]);
     }
 
     /**
