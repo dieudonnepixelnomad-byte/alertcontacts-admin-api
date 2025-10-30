@@ -122,6 +122,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(Relationship::class, 'contact_id')->where('status', 'accepted');
     }
 
+    public function isAdmin(): bool
+    {
+        return $this->is_admin;
+    }
+
     // Can access Panel Filament Admin
     public function canAccessPanel(Panel $panel): bool
     {
