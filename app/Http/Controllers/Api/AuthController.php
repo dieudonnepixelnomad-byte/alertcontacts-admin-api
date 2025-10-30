@@ -24,6 +24,59 @@ class AuthController extends Controller
     }
 
     /**
+     * @OA\Post(
+     *     path="/auth/firebase-login",
+     *     tags={"Authentication"},
+     *     summary="Connexion avec Firebase",
+     *     description="Authentifie un utilisateur via Firebase et retourne un token d'accès",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"idToken", "userData"},
+     *             @OA\Property(property="idToken", type="string", description="Token ID Firebase"),
+     *             @OA\Property(
+     *                 property="userData",
+     *                 type="object",
+     *                 required={"uid", "email"},
+     *                 @OA\Property(property="uid", type="string", description="UID Firebase de l'utilisateur"),
+     *                 @OA\Property(property="email", type="string", format="email", description="Email de l'utilisateur"),
+     *                 @OA\Property(property="name", type="string", description="Nom de l'utilisateur"),
+     *                 @OA\Property(property="picture", type="string", description="URL de la photo de profil"),
+     *                 @OA\Property(property="phone_number", type="string", description="Numéro de téléphone"),
+     *                 @OA\Property(property="email_verified", type="boolean", description="Email vérifié"),
+     *                 @OA\Property(property="provider", type="string", description="Fournisseur d'authentification")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Connexion réussie",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="token", type="string", description="Token d'accès"),
+     *                 @OA\Property(property="user", ref="#/components/schemas/User")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Erreur de validation",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(
+     *                 property="error",
+     *                 type="object",
+     *                 @OA\Property(property="code", type="string", example="VALIDATION_ERROR"),
+     *                 @OA\Property(property="message", type="string", example="Invalid request data"),
+     *                 @OA\Property(property="details", type="object")
+     *             )
+     *         )
+     *     )
+     * )
+     * 
      * Login avec Firebase
      */
     public function firebaseLogin(Request $request): JsonResponse
@@ -121,6 +174,22 @@ class AuthController extends Controller
     }
 
     /**
+     * @OA\Post(
+     *     path="/auth/logout",
+     *     tags={"Authentication"},
+     *     summary="Déconnexion",
+     *     description="Déconnecte l'utilisateur et révoque le token d'accès",
+     *     security={{"sanctum": {}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Déconnexion réussie",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Logged out successfully")
+     *         )
+     *     )
+     * )
+     * 
      * Logout
      */
     public function logout(Request $request): JsonResponse
@@ -148,6 +217,41 @@ class AuthController extends Controller
     }
 
     /**
+     * @OA\Get(
+     *     path="/me",
+     *     tags={"User Profile"},
+     *     summary="Profil utilisateur",
+     *     description="Récupère les informations de l'utilisateur connecté",
+     *     security={{"sanctum": {}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Informations utilisateur récupérées avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="id", type="integer", example=1),
+     *                 @OA\Property(property="name", type="string", example="John Doe"),
+     *                 @OA\Property(property="email", type="string", example="john@example.com")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Non authentifié",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(
+     *                 property="error",
+     *                 type="object",
+     *                 @OA\Property(property="code", type="string", example="UNAUTHORIZED"),
+     *                 @OA\Property(property="message", type="string", example="User not authenticated")
+     *             )
+     *         )
+     *     )
+     * )
+     * 
      * Obtenir les informations de l'utilisateur connecté
      */
     public function me(Request $request): JsonResponse

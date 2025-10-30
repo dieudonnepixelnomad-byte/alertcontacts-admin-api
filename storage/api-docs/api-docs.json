@@ -1,0 +1,1772 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "AlertContacts API",
+        "description": "API de sécurité personnelle pour protéger et rassurer ses proches. Cette API permet de gérer les zones de sécurité, zones de danger, invitations, relations entre utilisateurs et notifications en temps réel.",
+        "contact": {
+            "name": "Support AlertContacts",
+            "email": "support@alertcontacts.net"
+        },
+        "license": {
+            "name": "Propriétaire",
+            "url": "https://alertcontacts.net/terms"
+        },
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://mobile.alertcontacts.net/api",
+            "description": "Serveur de production"
+        },
+        {
+            "url": "http://localhost:8000/api",
+            "description": "Serveur de développement local"
+        }
+    ],
+    "paths": {
+        "/auth/firebase-login": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Connexion avec Firebase",
+                "description": "Authentifie un utilisateur via Firebase et retourne un token d'accès",
+                "operationId": "4e81bc9bcbaeb8da72f0572cd76fe247",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "idToken",
+                                    "userData"
+                                ],
+                                "properties": {
+                                    "idToken": {
+                                        "description": "Token ID Firebase",
+                                        "type": "string"
+                                    },
+                                    "userData": {
+                                        "required": [
+                                            "uid",
+                                            "email"
+                                        ],
+                                        "properties": {
+                                            "uid": {
+                                                "description": "UID Firebase de l'utilisateur",
+                                                "type": "string"
+                                            },
+                                            "email": {
+                                                "description": "Email de l'utilisateur",
+                                                "type": "string",
+                                                "format": "email"
+                                            },
+                                            "name": {
+                                                "description": "Nom de l'utilisateur",
+                                                "type": "string"
+                                            },
+                                            "picture": {
+                                                "description": "URL de la photo de profil",
+                                                "type": "string"
+                                            },
+                                            "phone_number": {
+                                                "description": "Numéro de téléphone",
+                                                "type": "string"
+                                            },
+                                            "email_verified": {
+                                                "description": "Email vérifié",
+                                                "type": "boolean"
+                                            },
+                                            "provider": {
+                                                "description": "Fournisseur d'authentification",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Connexion réussie",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "token": {
+                                                    "description": "Token d'accès",
+                                                    "type": "string"
+                                                },
+                                                "user": {
+                                                    "$ref": "#/components/schemas/User"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Erreur de validation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "error": {
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "example": "VALIDATION_ERROR"
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "Invalid request data"
+                                                },
+                                                "details": {
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Déconnexion",
+                "description": "Déconnecte l'utilisateur et révoque le token d'accès",
+                "operationId": "6abf3b64a4bc7838d56346f05a5153af",
+                "responses": {
+                    "200": {
+                        "description": "Déconnexion réussie",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Logged out successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/me": {
+            "get": {
+                "tags": [
+                    "User Profile"
+                ],
+                "summary": "Profil utilisateur",
+                "description": "Récupère les informations de l'utilisateur connecté",
+                "operationId": "bc2032a379aa97707ccc61511897c120",
+                "responses": {
+                    "200": {
+                        "description": "Informations utilisateur récupérées avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "name": {
+                                                    "type": "string",
+                                                    "example": "John Doe"
+                                                },
+                                                "email": {
+                                                    "type": "string",
+                                                    "example": "john@example.com"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Non authentifié",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "error": {
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "example": "UNAUTHORIZED"
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "User not authenticated"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/danger-zones": {
+            "get": {
+                "tags": [
+                    "Danger Zones"
+                ],
+                "summary": "Récupérer les zones de danger",
+                "description": "Récupère les zones de danger actives dans un rayon donné avec filtres optionnels",
+                "operationId": "5315b38ad3b5640fb53508359b014329",
+                "parameters": [
+                    {
+                        "name": "lat",
+                        "in": "query",
+                        "description": "Latitude du centre de recherche",
+                        "schema": {
+                            "type": "number",
+                            "format": "float",
+                            "maximum": 90,
+                            "minimum": -90
+                        }
+                    },
+                    {
+                        "name": "lng",
+                        "in": "query",
+                        "description": "Longitude du centre de recherche",
+                        "schema": {
+                            "type": "number",
+                            "format": "float",
+                            "maximum": 180,
+                            "minimum": -180
+                        }
+                    },
+                    {
+                        "name": "radius_km",
+                        "in": "query",
+                        "description": "Rayon de recherche en kilomètres",
+                        "schema": {
+                            "type": "number",
+                            "format": "float",
+                            "maximum": 50,
+                            "minimum": 0.1
+                        }
+                    },
+                    {
+                        "name": "min_severity",
+                        "in": "query",
+                        "description": "Sévérité minimale",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "low",
+                                "med",
+                                "high"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "max_age_days",
+                        "in": "query",
+                        "description": "Âge maximum en jours",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 365,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Liste des zones de danger récupérée avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/DangerZone"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Erreur de validation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Erreur serveur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Danger Zones"
+                ],
+                "summary": "Créer une zone de danger",
+                "description": "Crée une nouvelle zone de danger avec titre, description, localisation et type de danger",
+                "operationId": "3ca97ebf4300353d65fd1d63a58bde44",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "title",
+                                    "center",
+                                    "radius_m",
+                                    "severity",
+                                    "danger_type"
+                                ],
+                                "properties": {
+                                    "title": {
+                                        "description": "Titre de la zone de danger",
+                                        "type": "string",
+                                        "maxLength": 255,
+                                        "example": "Agression signalée"
+                                    },
+                                    "description": {
+                                        "description": "Description détaillée",
+                                        "type": "string",
+                                        "maxLength": 1000,
+                                        "example": "Agression signalée hier soir vers 22h",
+                                        "nullable": true
+                                    },
+                                    "center": {
+                                        "description": "Centre de la zone de danger",
+                                        "properties": {
+                                            "lat": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 48.8566
+                                            },
+                                            "lng": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 2.3522
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "radius_m": {
+                                        "description": "Rayon en mètres",
+                                        "type": "integer",
+                                        "maximum": 1000,
+                                        "minimum": 10,
+                                        "example": 50
+                                    },
+                                    "severity": {
+                                        "description": "Niveau de sévérité",
+                                        "type": "string",
+                                        "enum": [
+                                            "low",
+                                            "med",
+                                            "high"
+                                        ],
+                                        "example": "high"
+                                    },
+                                    "danger_type": {
+                                        "description": "Type de danger",
+                                        "type": "string",
+                                        "enum": [
+                                            "agression",
+                                            "vol",
+                                            "braquage",
+                                            "harcelement",
+                                            "zone_non_eclairee",
+                                            "zone_marecageuse",
+                                            "accident_frequent",
+                                            "deal_drogue",
+                                            "vandalisme",
+                                            "zone_deserte",
+                                            "construction_dangereuse",
+                                            "animaux_errants",
+                                            "manifestation",
+                                            "inondation",
+                                            "autre"
+                                        ],
+                                        "example": "agression"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Zone de danger créée avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/DangerZone"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Erreur de validation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Erreur serveur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/danger-zones/{id}": {
+            "put": {
+                "tags": [
+                    "Danger Zones"
+                ],
+                "summary": "Mettre à jour une zone de danger",
+                "description": "Met à jour une zone de danger existante (seul le créateur peut modifier)",
+                "operationId": "8afcb5567066a9a0699833858fef026f",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la zone de danger",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "title": {
+                                        "description": "Titre de la zone de danger",
+                                        "type": "string",
+                                        "maxLength": 255,
+                                        "example": "Agression signalée - Mise à jour"
+                                    },
+                                    "description": {
+                                        "description": "Description détaillée",
+                                        "type": "string",
+                                        "maxLength": 1000,
+                                        "example": "Agression confirmée par plusieurs témoins",
+                                        "nullable": true
+                                    },
+                                    "center": {
+                                        "description": "Centre de la zone de danger",
+                                        "properties": {
+                                            "lat": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 48.8566
+                                            },
+                                            "lng": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 2.3522
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "radius_m": {
+                                        "description": "Rayon en mètres",
+                                        "type": "integer",
+                                        "maximum": 1000,
+                                        "minimum": 10,
+                                        "example": 75
+                                    },
+                                    "severity": {
+                                        "description": "Niveau de sévérité",
+                                        "type": "string",
+                                        "enum": [
+                                            "low",
+                                            "med",
+                                            "high"
+                                        ],
+                                        "example": "high"
+                                    },
+                                    "danger_type": {
+                                        "description": "Type de danger",
+                                        "type": "string",
+                                        "enum": [
+                                            "agression",
+                                            "vol",
+                                            "braquage",
+                                            "harcelement",
+                                            "zone_non_eclairee",
+                                            "zone_marecageuse",
+                                            "accident_frequent",
+                                            "deal_drogue",
+                                            "vandalisme",
+                                            "zone_deserte",
+                                            "construction_dangereuse",
+                                            "animaux_errants",
+                                            "manifestation",
+                                            "inondation",
+                                            "autre"
+                                        ],
+                                        "example": "agression"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Zone de danger mise à jour avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/DangerZone"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Non autorisé - Seul le créateur peut modifier",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Zone de danger non trouvée",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Erreur de validation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Danger Zones"
+                ],
+                "summary": "Supprimer une zone de danger",
+                "description": "Supprime une zone de danger existante (seul le créateur peut supprimer)",
+                "operationId": "ad133b9a6b5f151f86e1a2ddfb3e4f15",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la zone de danger",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Zone de danger supprimée avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Zone de danger supprimée avec succès"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Non autorisé - Seul le créateur peut supprimer",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Zone de danger non trouvée",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Erreur serveur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/danger-zones/{id}/confirm": {
+            "post": {
+                "tags": [
+                    "Danger Zones"
+                ],
+                "summary": "Confirmer une zone de danger",
+                "description": "Confirme l'existence d'une zone de danger (un utilisateur ne peut confirmer qu'une seule fois)",
+                "operationId": "c0cb1ced58c1dbb64aabf392ad1931e3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la zone de danger",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Zone de danger confirmée avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/DangerZone"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Zone de danger confirmée avec succès"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Déjà confirmé par cet utilisateur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Vous avez déjà confirmé cette zone de danger"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Zone de danger non trouvée",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Erreur serveur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/safe-zones": {
+            "get": {
+                "tags": [
+                    "Safe Zones"
+                ],
+                "summary": "Récupérer les zones de sécurité",
+                "description": "Récupère toutes les zones de sécurité actives de l'utilisateur connecté",
+                "operationId": "02a8af6911eb73304d6027c86e0e098d",
+                "responses": {
+                    "200": {
+                        "description": "Liste des zones de sécurité récupérée avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/SafeZone"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Non authentifié",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Erreur serveur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Safe Zones"
+                ],
+                "summary": "Créer une zone de sécurité",
+                "description": "Crée une nouvelle zone de sécurité (cercle ou polygone) avec assignation optionnelle de contacts",
+                "operationId": "23ee04fd1d24e8e39b70a5b8220cc3e5",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "description": "Nom de la zone",
+                                        "type": "string",
+                                        "example": "Maison"
+                                    },
+                                    "icon": {
+                                        "description": "Icône de la zone",
+                                        "type": "string",
+                                        "example": "home"
+                                    },
+                                    "center": {
+                                        "description": "Centre de la zone (pour les cercles)",
+                                        "properties": {
+                                            "lat": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 48.8566
+                                            },
+                                            "lng": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 2.3522
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "radius_m": {
+                                        "description": "Rayon en mètres (pour les cercles)",
+                                        "type": "integer",
+                                        "example": 100
+                                    },
+                                    "geom": {
+                                        "description": "Géométrie de la zone (pour les polygones)",
+                                        "properties": {
+                                            "coordinates": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "number",
+                                                            "format": "float"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "contact_ids": {
+                                        "description": "IDs des contacts à assigner à la zone",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "active_hours": {
+                                        "description": "Heures d'activité de la zone",
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Zone de sécurité créée avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/SafeZone"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Erreur de validation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Erreur serveur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/safe-zones/{id}": {
+            "put": {
+                "tags": [
+                    "Safe Zones"
+                ],
+                "summary": "Mettre à jour une zone de sécurité",
+                "description": "Met à jour une zone de sécurité existante (seul le propriétaire peut modifier)",
+                "operationId": "6f1e1e37806e658144fd49a9969152a1",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la zone de sécurité",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "description": "Nom de la zone",
+                                        "type": "string",
+                                        "example": "Maison"
+                                    },
+                                    "icon": {
+                                        "description": "Icône de la zone",
+                                        "type": "string",
+                                        "example": "home"
+                                    },
+                                    "center": {
+                                        "description": "Centre de la zone (pour les cercles)",
+                                        "properties": {
+                                            "lat": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 48.8566
+                                            },
+                                            "lng": {
+                                                "type": "number",
+                                                "format": "float",
+                                                "example": 2.3522
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "radius_m": {
+                                        "description": "Rayon en mètres (pour les cercles)",
+                                        "type": "integer",
+                                        "example": 100
+                                    },
+                                    "active_hours": {
+                                        "description": "Heures d'activité de la zone",
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Zone de sécurité mise à jour avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/SafeZone"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Non autorisé - Vous n'êtes pas le propriétaire de cette zone",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Zone non trouvée",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Erreur de validation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Safe Zones"
+                ],
+                "summary": "Supprimer une zone de sécurité",
+                "description": "Supprime une zone de sécurité et toutes ses assignations (seul le propriétaire peut supprimer)",
+                "operationId": "fc0ef035d02a5cdea0ac1d4bee453c90",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la zone de sécurité",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Zone de sécurité supprimée avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Zone de sécurité supprimée avec succès."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Non autorisé - Vous n'êtes pas le propriétaire de cette zone",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Zone non trouvée",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Erreur serveur",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "User": {
+                "title": "Utilisateur",
+                "description": "Modèle représentant un utilisateur de l'application",
+                "properties": {
+                    "id": {
+                        "description": "Identifiant unique de l'utilisateur",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "name": {
+                        "description": "Nom complet de l'utilisateur",
+                        "type": "string",
+                        "example": "John Doe"
+                    },
+                    "email": {
+                        "description": "Adresse email de l'utilisateur",
+                        "type": "string",
+                        "format": "email",
+                        "example": "john@example.com"
+                    },
+                    "firebase_uid": {
+                        "description": "UID Firebase de l'utilisateur",
+                        "type": "string",
+                        "example": "firebase_uid_123",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "description": "Date de création du compte",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "description": "Date de dernière mise à jour",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            },
+            "SafeZone": {
+                "title": "Zone de Sécurité",
+                "description": "Zone privée de sécurité créée par un utilisateur",
+                "properties": {
+                    "id": {
+                        "description": "Identifiant unique de la zone",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "name": {
+                        "description": "Nom de la zone de sécurité",
+                        "type": "string",
+                        "example": "Maison"
+                    },
+                    "description": {
+                        "description": "Description de la zone",
+                        "type": "string",
+                        "example": "Zone autour de la maison familiale",
+                        "nullable": true
+                    },
+                    "center": {
+                        "description": "Coordonnées du centre de la zone",
+                        "properties": {
+                            "lat": {
+                                "description": "Latitude",
+                                "type": "number",
+                                "format": "float",
+                                "example": 48.8566
+                            },
+                            "lng": {
+                                "description": "Longitude",
+                                "type": "number",
+                                "format": "float",
+                                "example": 2.3522
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "radius_meters": {
+                        "description": "Rayon de la zone en mètres",
+                        "type": "integer",
+                        "example": 100
+                    },
+                    "icon_key": {
+                        "description": "Clé de l'icône à afficher",
+                        "type": "string",
+                        "example": "home"
+                    },
+                    "address": {
+                        "description": "Adresse de la zone",
+                        "type": "string",
+                        "example": "123 Rue de la Paix, Paris",
+                        "nullable": true
+                    },
+                    "member_ids": {
+                        "description": "IDs des membres assignés à cette zone",
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "example": [
+                            2,
+                            3
+                        ]
+                    },
+                    "owner_id": {
+                        "description": "ID du propriétaire de la zone",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            },
+            "DangerZone": {
+                "title": "Zone de Danger",
+                "description": "Zone publique de danger signalée par les utilisateurs",
+                "properties": {
+                    "id": {
+                        "description": "Identifiant unique de la zone",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "title": {
+                        "description": "Titre du signalement",
+                        "type": "string",
+                        "example": "Agression signalée"
+                    },
+                    "description": {
+                        "description": "Description détaillée du danger",
+                        "type": "string",
+                        "example": "Agression à main armée signalée dans cette zone"
+                    },
+                    "center": {
+                        "description": "Coordonnées du centre de la zone",
+                        "properties": {
+                            "lat": {
+                                "description": "Latitude",
+                                "type": "number",
+                                "format": "float",
+                                "example": 48.8566
+                            },
+                            "lng": {
+                                "description": "Longitude",
+                                "type": "number",
+                                "format": "float",
+                                "example": 2.3522
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "radius_m": {
+                        "description": "Rayon de la zone en mètres",
+                        "type": "integer",
+                        "example": 50
+                    },
+                    "severity": {
+                        "description": "Niveau de gravité",
+                        "type": "string",
+                        "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "critical"
+                        ],
+                        "example": "high"
+                    },
+                    "danger_type": {
+                        "description": "Type de danger",
+                        "type": "string",
+                        "example": "agression"
+                    },
+                    "confirmations": {
+                        "description": "Nombre de confirmations reçues",
+                        "type": "integer",
+                        "example": 3
+                    },
+                    "reports_count": {
+                        "description": "Nombre de signalements d'abus",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "reported_by": {
+                        "description": "ID de l'utilisateur qui a signalé",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "last_report_at": {
+                        "description": "Date du dernier signalement",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "expires_at": {
+                        "description": "Date d'expiration du signalement",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-02-01T00:00:00Z"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            },
+            "Invitation": {
+                "title": "Invitation",
+                "description": "Invitation envoyée entre utilisateurs",
+                "properties": {
+                    "id": {
+                        "description": "Identifiant unique de l'invitation",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "token": {
+                        "description": "Token unique de l'invitation",
+                        "type": "string",
+                        "example": "abc123def456"
+                    },
+                    "inviter_id": {
+                        "description": "ID de l'utilisateur qui invite",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "invitee_email": {
+                        "description": "Email de la personne invitée",
+                        "type": "string",
+                        "format": "email",
+                        "example": "invitee@example.com"
+                    },
+                    "invitee_name": {
+                        "description": "Nom de la personne invitée",
+                        "type": "string",
+                        "example": "Jane Doe"
+                    },
+                    "status": {
+                        "description": "Statut de l'invitation",
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "accepted",
+                            "declined",
+                            "expired"
+                        ],
+                        "example": "pending"
+                    },
+                    "expires_at": {
+                        "description": "Date d'expiration de l'invitation",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-08T00:00:00Z"
+                    },
+                    "accepted_at": {
+                        "description": "Date d'acceptation",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-02T00:00:00Z",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            },
+            "Relationship": {
+                "title": "Relation",
+                "description": "Relation entre deux utilisateurs (proche)",
+                "properties": {
+                    "id": {
+                        "description": "Identifiant unique de la relation",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "user_id": {
+                        "description": "ID de l'utilisateur principal",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "contact_id": {
+                        "description": "ID du contact/proche",
+                        "type": "integer",
+                        "example": 2
+                    },
+                    "share_level": {
+                        "description": "Niveau de partage de localisation",
+                        "type": "string",
+                        "enum": [
+                            "none",
+                            "alerts_only",
+                            "real_time"
+                        ],
+                        "example": "real_time"
+                    },
+                    "nickname": {
+                        "description": "Surnom donné au contact",
+                        "type": "string",
+                        "example": "Papa",
+                        "nullable": true
+                    },
+                    "is_emergency_contact": {
+                        "description": "Contact d'urgence",
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "contact": {
+                        "$ref": "#/components/schemas/User"
+                    }
+                },
+                "type": "object"
+            },
+            "UserActivity": {
+                "title": "Activité Utilisateur",
+                "description": "Historique des activités d'un utilisateur",
+                "properties": {
+                    "id": {
+                        "description": "Identifiant unique de l'activité",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "user_id": {
+                        "description": "ID de l'utilisateur",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "action": {
+                        "description": "Type d'action effectuée",
+                        "type": "string",
+                        "example": "login"
+                    },
+                    "description": {
+                        "description": "Description de l'activité",
+                        "type": "string",
+                        "example": "Connexion réussie"
+                    },
+                    "ip_address": {
+                        "description": "Adresse IP",
+                        "type": "string",
+                        "example": "192.168.1.1",
+                        "nullable": true
+                    },
+                    "user_agent": {
+                        "description": "User agent du navigateur/app",
+                        "type": "string",
+                        "example": "Mozilla/5.0...",
+                        "nullable": true
+                    },
+                    "metadata": {
+                        "description": "Données supplémentaires en JSON",
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            },
+            "ApiResponse": {
+                "title": "Réponse API Standard",
+                "description": "Format de réponse standard de l'API",
+                "properties": {
+                    "success": {
+                        "description": "Indique si la requête a réussi",
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "data": {
+                        "description": "Données de la réponse",
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "message": {
+                        "description": "Message informatif",
+                        "type": "string",
+                        "example": "Opération réussie",
+                        "nullable": true
+                    },
+                    "error": {
+                        "description": "Informations d'erreur",
+                        "properties": {
+                            "code": {
+                                "description": "Code d'erreur",
+                                "type": "string",
+                                "example": "VALIDATION_ERROR"
+                            },
+                            "message": {
+                                "description": "Message d'erreur",
+                                "type": "string",
+                                "example": "Données invalides"
+                            },
+                            "details": {
+                                "description": "Détails supplémentaires",
+                                "type": "object",
+                                "nullable": true
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "PaginatedResponse": {
+                "title": "Réponse Paginée",
+                "description": "Format de réponse pour les données paginées",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "data": {
+                        "properties": {
+                            "data": {
+                                "description": "Éléments de la page courante",
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            },
+                            "current_page": {
+                                "description": "Page courante",
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "last_page": {
+                                "description": "Dernière page",
+                                "type": "integer",
+                                "example": 5
+                            },
+                            "per_page": {
+                                "description": "Éléments par page",
+                                "type": "integer",
+                                "example": 15
+                            },
+                            "total": {
+                                "description": "Nombre total d'éléments",
+                                "type": "integer",
+                                "example": 75
+                            },
+                            "from": {
+                                "description": "Index du premier élément",
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "to": {
+                                "description": "Index du dernier élément",
+                                "type": "integer",
+                                "example": 15
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "sanctum": {
+                "type": "http",
+                "description": "Authentification via Laravel Sanctum. Utilisez le token obtenu lors de la connexion.",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Authentication",
+            "description": "Endpoints d'authentification (connexion, inscription, déconnexion)"
+        },
+        {
+            "name": "User Profile",
+            "description": "Gestion du profil utilisateur"
+        },
+        {
+            "name": "Safe Zones",
+            "description": "Gestion des zones de sécurité privées"
+        },
+        {
+            "name": "Danger Zones",
+            "description": "Gestion des zones de danger publiques"
+        }
+    ]
+}

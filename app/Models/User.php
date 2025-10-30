@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
+use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Filament\Panel;
-use Illuminate\Support\Facades\Schema;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens;
@@ -125,7 +125,16 @@ class User extends Authenticatable
     // Can access Panel Filament Admin
     public function canAccessPanel(Panel $panel): bool
     {
-        return str_ends_with($this->email, '@gmail.com') && $this->hasVerifiedEmail();
-    }
+        // Permettre l'accès aux emails spécifiques (super admins)
+        if ($this->email === 'dieudonnegwet86@gmail.com' || $this->email === 'edwige.gnaly1@gmail.com') {
+            return true;
+        }
 
+        // Permettre l'accès si l'utilisateur a un champ is_admin à true
+        if (isset($this->attributes['is_admin']) && $this->attributes['is_admin']) {
+            return true;
+        }
+
+        return false;
+    }
 }

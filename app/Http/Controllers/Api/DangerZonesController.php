@@ -22,6 +22,66 @@ class DangerZonesController extends Controller
     ) {}
 
     /**
+     * @OA\Get(
+     *     path="/api/danger-zones",
+     *     tags={"Danger Zones"},
+     *     summary="Récupérer les zones de danger",
+     *     description="Récupère les zones de danger actives dans un rayon donné avec filtres optionnels",
+     *     security={{"sanctum": {}}},
+     *     @OA\Parameter(
+     *         name="lat",
+     *         in="query",
+     *         description="Latitude du centre de recherche",
+     *         @OA\Schema(type="number", format="float", minimum=-90, maximum=90)
+     *     ),
+     *     @OA\Parameter(
+     *         name="lng",
+     *         in="query",
+     *         description="Longitude du centre de recherche",
+     *         @OA\Schema(type="number", format="float", minimum=-180, maximum=180)
+     *     ),
+     *     @OA\Parameter(
+     *         name="radius_km",
+     *         in="query",
+     *         description="Rayon de recherche en kilomètres",
+     *         @OA\Schema(type="number", format="float", minimum=0.1, maximum=50)
+     *     ),
+     *     @OA\Parameter(
+     *         name="min_severity",
+     *         in="query",
+     *         description="Sévérité minimale",
+     *         @OA\Schema(type="string", enum={"low", "med", "high"})
+     *     ),
+     *     @OA\Parameter(
+     *         name="max_age_days",
+     *         in="query",
+     *         description="Âge maximum en jours",
+     *         @OA\Schema(type="integer", minimum=1, maximum=365)
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Liste des zones de danger récupérée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="array",
+     *                 @OA\Items(ref="#/components/schemas/DangerZone")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Erreur de validation",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Erreur serveur",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Récupérer les zones de danger dans un rayon donné
      */
     public function index(Request $request): JsonResponse
@@ -106,6 +166,56 @@ class DangerZonesController extends Controller
     }
 
     /**
+     * @OA\Post(
+     *     path="/api/danger-zones",
+     *     tags={"Danger Zones"},
+     *     summary="Créer une zone de danger",
+     *     description="Crée une nouvelle zone de danger avec titre, description, localisation et type de danger",
+     *     security={{"sanctum": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"title", "center", "radius_m", "severity", "danger_type"},
+     *             @OA\Property(property="title", type="string", maxLength=255, example="Agression signalée", description="Titre de la zone de danger"),
+     *             @OA\Property(property="description", type="string", maxLength=1000, nullable=true, example="Agression signalée hier soir vers 22h", description="Description détaillée"),
+     *             @OA\Property(
+     *                 property="center",
+     *                 type="object",
+     *                 description="Centre de la zone de danger",
+     *                 @OA\Property(property="lat", type="number", format="float", example=48.8566),
+     *                 @OA\Property(property="lng", type="number", format="float", example=2.3522)
+     *             ),
+     *             @OA\Property(property="radius_m", type="integer", minimum=10, maximum=1000, example=50, description="Rayon en mètres"),
+     *             @OA\Property(property="severity", type="string", enum={"low", "med", "high"}, example="high", description="Niveau de sévérité"),
+     *             @OA\Property(
+     *                 property="danger_type", 
+     *                 type="string", 
+     *                 enum={"agression", "vol", "braquage", "harcelement", "zone_non_eclairee", "zone_marecageuse", "accident_frequent", "deal_drogue", "vandalisme", "zone_deserte", "construction_dangereuse", "animaux_errants", "manifestation", "inondation", "autre"}, 
+     *                 example="agression", 
+     *                 description="Type de danger"
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="Zone de danger créée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", ref="#/components/schemas/DangerZone")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Erreur de validation",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Erreur serveur",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Créer une nouvelle zone de danger
      */
     public function store(Request $request): JsonResponse
@@ -266,6 +376,67 @@ class DangerZonesController extends Controller
     }
 
     /**
+     * @OA\Put(
+     *     path="/api/danger-zones/{id}",
+     *     tags={"Danger Zones"},
+     *     summary="Mettre à jour une zone de danger",
+     *     description="Met à jour une zone de danger existante (seul le créateur peut modifier)",
+     *     security={{"sanctum": {}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="ID de la zone de danger",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="title", type="string", maxLength=255, example="Agression signalée - Mise à jour", description="Titre de la zone de danger"),
+     *             @OA\Property(property="description", type="string", maxLength=1000, nullable=true, example="Agression confirmée par plusieurs témoins", description="Description détaillée"),
+     *             @OA\Property(
+     *                 property="center",
+     *                 type="object",
+     *                 description="Centre de la zone de danger",
+     *                 @OA\Property(property="lat", type="number", format="float", example=48.8566),
+     *                 @OA\Property(property="lng", type="number", format="float", example=2.3522)
+     *             ),
+     *             @OA\Property(property="radius_m", type="integer", minimum=10, maximum=1000, example=75, description="Rayon en mètres"),
+     *             @OA\Property(property="severity", type="string", enum={"low", "med", "high"}, example="high", description="Niveau de sévérité"),
+     *             @OA\Property(
+     *                 property="danger_type", 
+     *                 type="string", 
+     *                 enum={"agression", "vol", "braquage", "harcelement", "zone_non_eclairee", "zone_marecageuse", "accident_frequent", "deal_drogue", "vandalisme", "zone_deserte", "construction_dangereuse", "animaux_errants", "manifestation", "inondation", "autre"}, 
+     *                 example="agression", 
+     *                 description="Type de danger"
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Zone de danger mise à jour avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", ref="#/components/schemas/DangerZone")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Non autorisé - Seul le créateur peut modifier",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Zone de danger non trouvée",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Erreur de validation",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Mettre à jour une zone de danger
      */
     public function update(Request $request, DangerZone $dangerZone): JsonResponse
@@ -347,6 +518,44 @@ class DangerZonesController extends Controller
     }
 
     /**
+     * @OA\Delete(
+     *     path="/api/danger-zones/{id}",
+     *     tags={"Danger Zones"},
+     *     summary="Supprimer une zone de danger",
+     *     description="Supprime une zone de danger existante (seul le créateur peut supprimer)",
+     *     security={{"sanctum": {}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="ID de la zone de danger",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Zone de danger supprimée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Zone de danger supprimée avec succès")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Non autorisé - Seul le créateur peut supprimer",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Zone de danger non trouvée",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Erreur serveur",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Supprimer une zone de danger
      */
     public function destroy(DangerZone $dangerZone): JsonResponse
@@ -410,9 +619,51 @@ class DangerZonesController extends Controller
     }
 
     /**
+     * @OA\Post(
+     *     path="/api/danger-zones/{id}/confirm",
+     *     tags={"Danger Zones"},
+     *     summary="Confirmer une zone de danger",
+     *     description="Confirme l'existence d'une zone de danger (un utilisateur ne peut confirmer qu'une seule fois)",
+     *     security={{"sanctum": {}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="ID de la zone de danger",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Zone de danger confirmée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", ref="#/components/schemas/DangerZone"),
+     *             @OA\Property(property="message", type="string", example="Zone de danger confirmée avec succès")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Déjà confirmé par cet utilisateur",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Vous avez déjà confirmé cette zone de danger")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Zone de danger non trouvée",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Erreur serveur",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Confirmer une zone de danger
      */
-    public function confirm(Request $request, DangerZone $dangerZone): JsonResponse
+    public function confirm(DangerZone $dangerZone): JsonResponse
     {
         try {
             $user = Auth::user();

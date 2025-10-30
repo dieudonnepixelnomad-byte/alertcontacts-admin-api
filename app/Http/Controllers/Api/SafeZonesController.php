@@ -23,7 +23,37 @@ class SafeZonesController extends Controller
     ) {}
 
     /**
-     * Récupérer toutes les zones de sécurité de l'utilisateur
+     * @OA\Get(
+     *     path="/api/safe-zones",
+     *     tags={"Safe Zones"},
+     *     summary="Récupérer les zones de sécurité",
+     *     description="Récupère toutes les zones de sécurité actives de l'utilisateur connecté",
+     *     security={{"sanctum": {}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Liste des zones de sécurité récupérée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="array",
+     *                 @OA\Items(ref="#/components/schemas/SafeZone")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Non authentifié",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Erreur serveur",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
+     * Récupérer toutes les zones de sécurité de l'utilisateur connecté
      */
     public function index(): JsonResponse
     {
@@ -75,6 +105,71 @@ class SafeZonesController extends Controller
     }
 
     /**
+     * @OA\Post(
+     *     path="/api/safe-zones",
+     *     tags={"Safe Zones"},
+     *     summary="Créer une zone de sécurité",
+     *     description="Crée une nouvelle zone de sécurité (cercle ou polygone) avec assignation optionnelle de contacts",
+     *     security={{"sanctum": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name"},
+     *             @OA\Property(property="name", type="string", example="Maison", description="Nom de la zone"),
+     *             @OA\Property(property="icon", type="string", example="home", description="Icône de la zone"),
+     *             @OA\Property(
+     *                 property="center",
+     *                 type="object",
+     *                 description="Centre de la zone (pour les cercles)",
+     *                 @OA\Property(property="lat", type="number", format="float", example=48.8566),
+     *                 @OA\Property(property="lng", type="number", format="float", example=2.3522)
+     *             ),
+     *             @OA\Property(property="radius_m", type="integer", example=100, description="Rayon en mètres (pour les cercles)"),
+     *             @OA\Property(
+     *                 property="geom",
+     *                 type="object",
+     *                 description="Géométrie de la zone (pour les polygones)",
+     *                 @OA\Property(
+     *                     property="coordinates",
+     *                     type="array",
+     *                     @OA\Items(
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="array",
+     *                             @OA\Items(type="number", format="float")
+     *                         )
+     *                     )
+     *                 )
+     *             ),
+     *             @OA\Property(
+     *                 property="contact_ids",
+     *                 type="array",
+     *                 description="IDs des contacts à assigner à la zone",
+     *                 @OA\Items(type="integer")
+     *             ),
+     *             @OA\Property(property="active_hours", type="string", nullable=true, description="Heures d'activité de la zone")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="Zone de sécurité créée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", ref="#/components/schemas/SafeZone")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Erreur de validation",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Erreur serveur",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Créer une nouvelle zone de sécurité
      */
     public function store(StoreSafeZoneRequest $request): JsonResponse
@@ -239,6 +334,61 @@ class SafeZonesController extends Controller
     }
 
     /**
+     * @OA\Put(
+     *     path="/api/safe-zones/{id}",
+     *     tags={"Safe Zones"},
+     *     summary="Mettre à jour une zone de sécurité",
+     *     description="Met à jour une zone de sécurité existante (seul le propriétaire peut modifier)",
+     *     security={{"sanctum": {}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="ID de la zone de sécurité",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name"},
+     *             @OA\Property(property="name", type="string", example="Maison", description="Nom de la zone"),
+     *             @OA\Property(property="icon", type="string", example="home", description="Icône de la zone"),
+     *             @OA\Property(
+     *                 property="center",
+     *                 type="object",
+     *                 description="Centre de la zone (pour les cercles)",
+     *                 @OA\Property(property="lat", type="number", format="float", example=48.8566),
+     *                 @OA\Property(property="lng", type="number", format="float", example=2.3522)
+     *             ),
+     *             @OA\Property(property="radius_m", type="integer", example=100, description="Rayon en mètres (pour les cercles)"),
+     *             @OA\Property(property="active_hours", type="string", nullable=true, description="Heures d'activité de la zone")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Zone de sécurité mise à jour avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", ref="#/components/schemas/SafeZone")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Non autorisé - Vous n'êtes pas le propriétaire de cette zone",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Zone non trouvée",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Erreur de validation",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Mettre à jour une zone de sécurité
      */
     public function update(StoreSafeZoneRequest $request, SafeZone $safeZone): JsonResponse
@@ -320,6 +470,44 @@ class SafeZonesController extends Controller
     }
 
     /**
+     * @OA\Delete(
+     *     path="/api/safe-zones/{id}",
+     *     tags={"Safe Zones"},
+     *     summary="Supprimer une zone de sécurité",
+     *     description="Supprime une zone de sécurité et toutes ses assignations (seul le propriétaire peut supprimer)",
+     *     security={{"sanctum": {}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="ID de la zone de sécurité",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Zone de sécurité supprimée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Zone de sécurité supprimée avec succès.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Non autorisé - Vous n'êtes pas le propriétaire de cette zone",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Zone non trouvée",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Erreur serveur",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
      * Supprimer une zone de sécurité
      */
     public function destroy(SafeZone $safeZone): JsonResponse
