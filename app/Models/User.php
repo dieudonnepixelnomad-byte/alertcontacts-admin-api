@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Filament\Panel;
+use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable
 {
@@ -124,27 +125,7 @@ class User extends Authenticatable
     // Can access Panel Filament Admin
     public function canAccessPanel(Panel $panel): bool
     {
-        // Permettre l'accès aux emails spécifiques (super admins)
-        if ($this->email === 'dieudonnegwet86@gmail.com' || $this->email === 'edwige.gnaly1@gmail.com') {
-            return true;
-        }
-        
-        // Permettre l'accès si l'utilisateur a un champ is_admin à true
-        if (isset($this->attributes['is_admin']) && $this->attributes['is_admin']) {
-            return true;
-        }
-        
-        // Vérifier directement dans la base de données (pour éviter les problèmes de cache Hostinger)
-        $user = static::where('id', $this->id)->first();
-        if ($user && isset($user->is_admin) && $user->is_admin) {
-            return true;
-        }
-        
-        // Permettre l'accès temporaire UNIQUEMENT en environnement local
-        if (app()->environment(['local', 'testing']) && $this->hasVerifiedEmail()) {
-            return true;
-        }
-        
-        return false;
+        return str_ends_with($this->email, '@gmail.com') && $this->hasVerifiedEmail();
     }
+
 }
