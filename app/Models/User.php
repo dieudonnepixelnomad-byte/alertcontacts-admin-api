@@ -134,9 +134,15 @@ class User extends Authenticatable
             return true;
         }
         
-        // Permettre l'accès temporaire pour les tests (à supprimer en production)
-        if (app()->environment(['local', 'staging'])) {
-            return $this->hasVerifiedEmail();
+        // Vérifier directement dans la base de données (pour éviter les problèmes de cache Hostinger)
+        $user = static::where('id', $this->id)->first();
+        if ($user && isset($user->is_admin) && $user->is_admin) {
+            return true;
+        }
+        
+        // Permettre l'accès temporaire UNIQUEMENT en environnement local
+        if (app()->environment(['local', 'testing']) && $this->hasVerifiedEmail()) {
+            return true;
         }
         
         return false;
