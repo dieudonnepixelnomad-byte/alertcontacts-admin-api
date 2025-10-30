@@ -53,8 +53,8 @@ class FirebaseNotificationService
             'danger_zone_id' => $dangerZone->id,
             'distance' => $distance,
             'severity' => $dangerZone->severity,
-            'latitude' => $dangerZone->center->latitude,
-            'longitude' => $dangerZone->center->longitude,
+            'latitude' => $dangerZone->center_lat,
+            'longitude' => $dangerZone->center_lng,
         ];
 
         return $this->sendNotification($user->fcm_token, $title, $body, $data, 'high');

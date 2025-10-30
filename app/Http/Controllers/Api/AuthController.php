@@ -324,8 +324,8 @@ class AuthController extends Controller
                     'title' => $zone->title,
                     'description' => $zone->description,
                     'center' => [
-                        'lat' => $zone->center->latitude,
-                        'lng' => $zone->center->longitude,
+                        'lat' => $zone->center_lat,
+                        'lng' => $zone->center_lng,
                     ],
                     'radius_meters' => $zone->radius_m,
                     'severity' => $zone->severity,

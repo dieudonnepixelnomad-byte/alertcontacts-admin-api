@@ -83,8 +83,8 @@ class GeoprocessingService
             $distance = $this->calculateDistance(
                 $location->latitude,
                 $location->longitude,
-                $zone->center->latitude,
-                $zone->center->longitude
+                $zone->center_lat,
+                $zone->center_lng
             );
 
             Log::debug('Distance to danger zone', [
