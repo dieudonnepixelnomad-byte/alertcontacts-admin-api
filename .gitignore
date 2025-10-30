@@ -22,3 +22,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Firebase credentials
+app/firebase/service-account.json
+storage/app/firebase/service-account.json
