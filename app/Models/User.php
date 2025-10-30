@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Filament\Panel;
 
 class User extends Authenticatable
 {
@@ -117,5 +118,13 @@ class User extends Authenticatable
     public function relatedToMe()
     {
         return $this->hasMany(Relationship::class, 'contact_id')->where('status', 'accepted');
+    }
+
+    // Can access Panel Filament Admin
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Only verified users with specific email can access
+        return $this->email === 'dieudonnegwet86@gmail.com' || $this->email === 'edwige.gnaly1@gmail.com';
+        // return $this->hasVerifiedEmail() && $this->email === 'dieudonnegwet86@gmail.com';
     }
 }
