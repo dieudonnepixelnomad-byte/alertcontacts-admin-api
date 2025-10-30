@@ -81,7 +81,7 @@ class DangerZonesController extends Controller
      *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
      *     )
      * )
-     * 
+     *
      * Récupérer les zones de danger dans un rayon donné
      */
     public function index(Request $request): JsonResponse
@@ -158,7 +158,7 @@ class DangerZonesController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'ZONES_FETCH_ERROR',
-                    'message' => 'Erreur lors de la récupération des zones de danger.',
+                    'message' => 'Erreur lors de la récupération des zones de danger: ' . $e->getMessage(),
                     'details' => config('app.debug') ? $e->getMessage() : null
                 ]
             ], 500);
@@ -188,10 +188,10 @@ class DangerZonesController extends Controller
      *             @OA\Property(property="radius_m", type="integer", minimum=10, maximum=1000, example=50, description="Rayon en mètres"),
      *             @OA\Property(property="severity", type="string", enum={"low", "med", "high"}, example="high", description="Niveau de sévérité"),
      *             @OA\Property(
-     *                 property="danger_type", 
-     *                 type="string", 
-     *                 enum={"agression", "vol", "braquage", "harcelement", "zone_non_eclairee", "zone_marecageuse", "accident_frequent", "deal_drogue", "vandalisme", "zone_deserte", "construction_dangereuse", "animaux_errants", "manifestation", "inondation", "autre"}, 
-     *                 example="agression", 
+     *                 property="danger_type",
+     *                 type="string",
+     *                 enum={"agression", "vol", "braquage", "harcelement", "zone_non_eclairee", "zone_marecageuse", "accident_frequent", "deal_drogue", "vandalisme", "zone_deserte", "construction_dangereuse", "animaux_errants", "manifestation", "inondation", "autre"},
+     *                 example="agression",
      *                 description="Type de danger"
      *             )
      *         )
@@ -215,7 +215,7 @@ class DangerZonesController extends Controller
      *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
      *     )
      * )
-     * 
+     *
      * Créer une nouvelle zone de danger
      */
     public function store(Request $request): JsonResponse
@@ -304,7 +304,7 @@ class DangerZonesController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             Log::error('DangerZonesController.store: Exception caught', [
                 'user_id' => Auth::id(),
                 'error_message' => $e->getMessage(),
@@ -404,10 +404,10 @@ class DangerZonesController extends Controller
      *             @OA\Property(property="radius_m", type="integer", minimum=10, maximum=1000, example=75, description="Rayon en mètres"),
      *             @OA\Property(property="severity", type="string", enum={"low", "med", "high"}, example="high", description="Niveau de sévérité"),
      *             @OA\Property(
-     *                 property="danger_type", 
-     *                 type="string", 
-     *                 enum={"agression", "vol", "braquage", "harcelement", "zone_non_eclairee", "zone_marecageuse", "accident_frequent", "deal_drogue", "vandalisme", "zone_deserte", "construction_dangereuse", "animaux_errants", "manifestation", "inondation", "autre"}, 
-     *                 example="agression", 
+     *                 property="danger_type",
+     *                 type="string",
+     *                 enum={"agression", "vol", "braquage", "harcelement", "zone_non_eclairee", "zone_marecageuse", "accident_frequent", "deal_drogue", "vandalisme", "zone_deserte", "construction_dangereuse", "animaux_errants", "manifestation", "inondation", "autre"},
+     *                 example="agression",
      *                 description="Type de danger"
      *             )
      *         )
@@ -436,7 +436,7 @@ class DangerZonesController extends Controller
      *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
      *     )
      * )
-     * 
+     *
      * Mettre à jour une zone de danger
      */
     public function update(Request $request, DangerZone $dangerZone): JsonResponse
@@ -555,7 +555,7 @@ class DangerZonesController extends Controller
      *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
      *     )
      * )
-     * 
+     *
      * Supprimer une zone de danger
      */
     public function destroy(DangerZone $dangerZone): JsonResponse
@@ -660,7 +660,7 @@ class DangerZonesController extends Controller
      *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
      *     )
      * )
-     * 
+     *
      * Confirmer une zone de danger
      */
     public function confirm(DangerZone $dangerZone): JsonResponse
@@ -865,7 +865,7 @@ class DangerZonesController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'ZONES_FETCH_ERROR',
-                    'message' => 'Erreur lors de la récupération des zones de danger.',
+                    'message' => 'Erreur lors de la récupération des zones de danger. ' . $e->getMessage(),
                     'details' => config('app.debug') ? $e->getMessage() : $e->getMessage()
                 ]
             ], 500);
