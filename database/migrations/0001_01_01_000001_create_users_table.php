@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -25,7 +26,7 @@ return new class extends Migration
             $table->string('phone_number')->nullable();
             
             // Champs FCM (Firebase Cloud Messaging)
-            $table->text('fcm_token')->nullable();
+            $table->string('fcm_token', 500)->nullable();
             $table->timestamp('fcm_token_updated_at')->nullable();
             $table->string('fcm_platform')->nullable(); // ios, android, web
             
@@ -34,6 +35,9 @@ return new class extends Migration
             $table->time('quiet_hours_end')->nullable();
             $table->string('timezone')->default('Europe/Paris');
             $table->boolean('quiet_hours_enabled')->default(false);
+            
+            // Administration
+            $table->boolean('is_admin')->default(false);
             
             $table->rememberToken();
             $table->timestamps();

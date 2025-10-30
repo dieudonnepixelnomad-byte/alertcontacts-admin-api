@@ -34,6 +34,7 @@ class User extends Authenticatable
         'quiet_hours_end',
         'timezone',
         'quiet_hours_enabled',
+        'is_admin',
     ];
 
     /**
@@ -123,8 +124,21 @@ class User extends Authenticatable
     // Can access Panel Filament Admin
     public function canAccessPanel(Panel $panel): bool
     {
-        // Only verified users with specific email can access
-        return $this->email === 'dieudonnegwet86@gmail.com' || $this->email === 'edwige.gnaly1@gmail.com';
-        // return $this->hasVerifiedEmail() && $this->email === 'dieudonnegwet86@gmail.com';
+        // Permettre l'accès aux emails spécifiques (super admins)
+        if ($this->email === 'dieudonnegwet86@gmail.com' || $this->email === 'edwige.gnaly1@gmail.com') {
+            return true;
+        }
+        
+        // Permettre l'accès si l'utilisateur a un champ is_admin à true
+        if (isset($this->attributes['is_admin']) && $this->attributes['is_admin']) {
+            return true;
+        }
+        
+        // Permettre l'accès temporaire pour les tests (à supprimer en production)
+        if (app()->environment(['local', 'staging'])) {
+            return $this->hasVerifiedEmail();
+        }
+        
+        return false;
     }
 }
