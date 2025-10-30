@@ -17,15 +17,9 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             
-            // Géométrie avec gestion du SRID selon la base de données
-            if (DB::getDriverName() === 'sqlite') {
-                // SQLite ne supporte pas les colonnes géométriques natives
-                $table->decimal('center_lat', 10, 8);
-                $table->decimal('center_lng', 11, 8);
-            } else {
-                // MySQL/MariaDB avec support spatial
-                $table->point('center')->spatialIndex();
-            }
+            // Coordonnées géographiques (compatible avec toutes les bases de données)
+            $table->decimal('center_lat', 10, 8);
+            $table->decimal('center_lng', 11, 8);
             
             $table->integer('radius_m')->default(100); // Rayon en mètres
             
@@ -56,43 +50,9 @@ return new class extends Migration
             $table->index('reported_by');
             $table->index('danger_type');
             
-            if (DB::getDriverName() !== 'sqlite') {
-                $table->index('center');
-            } else {
-                $table->index(['center_lat', 'center_lng']);
-            }
+            $table->index(['center_lat', 'center_lng']);
         });
-        
-        // Correction du SRID pour MySQL 8.0+ si nécessaire
-        if (DB::getDriverName() === 'mysql') {
-            $version = DB::select('SELECT VERSION() as version')[0]->version;
-            $isMySQL8Plus = version_compare($version, '8.0.0', '>=') && !str_contains(strtolower($version), 'mariadb');
-            
-            if ($isMySQL8Plus) {
-                try {
-                    // Vérifier si la colonne existe et a le bon SRID
-                    $result = DB::select("
-                        SELECT COLUMN_NAME, SRS_ID 
-                        FROM INFORMATION_SCHEMA.ST_GEOMETRY_COLUMNS 
-                        WHERE TABLE_NAME = 'danger_zones' 
-                        AND COLUMN_NAME = 'center'
-                    ");
-                    
-                    if (!empty($result) && $result[0]->SRS_ID != 4326) {
-                        // Supprimer l'index spatial temporairement
-                        DB::statement('DROP INDEX center ON danger_zones');
-                        
-                        // Modifier le SRID
-                        DB::statement('ALTER TABLE danger_zones MODIFY center POINT SRID 4326');
-                        
-                        // Recréer l'index spatial
-                        DB::statement('CREATE SPATIAL INDEX center ON danger_zones (center)');
-                    }
-                } catch (\Exception $e) {
-                    // Ignorer les erreurs de SRID en cas de problème
-                }
-            }
-        }
+
     }
 
     /**
