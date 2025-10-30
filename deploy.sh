@@ -45,7 +45,7 @@ php artisan view:clear
 
 # 4. Création du lien symbolique pour le storage
 echo "🔗 Création du lien symbolique pour le storage..."
-php artisan storage:link
+php artisan storage:link-alt
 
 # 5. Optimisation finale
 echo "🎯 Optimisation finale..."
