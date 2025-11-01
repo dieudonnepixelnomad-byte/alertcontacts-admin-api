@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{relationship}', [RelationshipController::class, 'show']);
         Route::put('/{relationship}/share-level', [RelationshipController::class, 'updateShareLevel']);
         Route::delete('/{relationship}', [RelationshipController::class, 'destroy']);
+        Route::get('/contact/{contactId}/locations', [RelationshipController::class, 'getContactLocations']);
     });
 
     // Gestion des zones assignées aux proches

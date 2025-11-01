@@ -561,4 +561,61 @@ class RelationshipController extends Controller
             ]
         ]);
     }
+
+    /**
+     * Récupérer les positions récentes d'un proche
+     * 
+     * @param Request $request
+     * @param string $contactId
+     * @return JsonResponse
+     */
+    public function getContactLocations(Request $request, string $contactId): JsonResponse
+    {
+        $user = Auth::user();
+        $limit = min($request->get('limit', 20), 100); // Max 100 positions
+        
+        // Vérifier que la relation existe et que l'utilisateur peut voir les positions
+        $relationship = Relationship::where('user_id', $user->id)
+            ->where('contact_id', $contactId)
+            ->where('status', 'accepted')
+            ->whereIn('share_level', ['realtime', 'alert_only'])
+            ->first();
+
+        if (!$relationship) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'avez pas l\'autorisation de voir les positions de ce proche'
+            ], 403);
+        }
+
+        // Récupérer les positions récentes du contact
+        $locations = \App\Models\UserLocation::where('user_id', $contactId)
+            ->orderBy('captured_at_device', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($location) {
+                return [
+                    'id' => $location->id,
+                    'latitude' => $location->latitude,
+                    'longitude' => $location->longitude,
+                    'accuracy' => $location->accuracy,
+                    'speed' => $location->speed,
+                    'heading' => $location->heading,
+                    'captured_at_device' => $location->captured_at_device,
+                    'source' => $location->source,
+                    'foreground' => $location->foreground,
+                    'created_at' => $location->created_at->toISOString(),
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'contact_id' => $contactId,
+                'locations' => $locations,
+                'count' => $locations->count(),
+                'share_level' => $relationship->share_level
+            ]
+        ]);
+    }
 }
