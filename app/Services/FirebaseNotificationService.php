@@ -45,6 +45,8 @@ class FirebaseNotificationService
             return false;
         }
 
+        Log::info("Envoi de notification de danger zone à l'utilisateur {$dangerZone->title}");
+
         $title = "⚠️ Zone de danger détectée";
         $body = "Vous approchez d'une zone de {$dangerZone->title} à {$this->formatDistance($distance)}";
 
@@ -70,6 +72,8 @@ class FirebaseNotificationService
             Log::warning("Utilisateur {$user->id} n'a pas de token FCM");
             return false;
         }
+
+        Log::info("Envoi de notification d'entrée en zone de sécurité à l'utilisateur {$safeZone->name}");
 
         $title = "✅ Entrée en zone de sécurité";
         $body = "{$assignedUser->name} est entré(e) dans la zone '{$safeZone->name}'";
