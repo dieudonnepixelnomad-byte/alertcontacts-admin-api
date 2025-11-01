@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LocationBatchRequest;
 use App\Jobs\ProcessLocationBatch;
+use App\Models\User;
 use App\Models\UserLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,51 +82,6 @@ class LocationController extends Controller
                 'success' => false,
                 'message' => 'Failed to process location batch',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
-            ], 500);
-        }
-    }
-
-    /**
-     * UC-R1: Mise à jour du token FCM pour les notifications push
-     * 
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function updateFcmToken(Request $request): JsonResponse
-    {
-        $request->validate([
-            'fcm_token' => 'required|string|max:255',
-            'platform' => 'nullable|string|in:android,ios'
-        ]);
-
-        try {
-            $user = Auth::user();
-            $user->update([
-                'fcm_token' => $request->fcm_token,
-                'fcm_platform' => $request->platform,
-                'fcm_token_updated_at' => now()
-            ]);
-
-            Log::info('FCM token updated', [
-                'user_id' => $user->id,
-                'platform' => $request->platform,
-                'token_prefix' => substr($request->fcm_token, 0, 20) . '...'
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'FCM token updated successfully'
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('FCM token update failed', [
-                'user_id' => Auth::id(),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update FCM token'
             ], 500);
         }
     }

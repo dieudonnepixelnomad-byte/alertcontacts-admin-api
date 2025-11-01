@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\IgnoredDangerZoneController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\RelationshipController;
 use App\Http\Controllers\Api\LocationController;
+use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\QuietHoursController;
 use App\Http\Controllers\Api\UserActivitiesController;
 use App\Http\Controllers\Api\TestNotificationController;
@@ -20,6 +21,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/register', [AuthController::class, 'register']);
 });
+
+// Route publique pour la mise à jour du token FCM (sans authentification Sanctum)
+Route::post('/users/fcm_token', [UserController::class, 'updateFcmToken']);
 
 // Routes protégées par Sanctum
 Route::middleware('auth:sanctum')->group(function () {
@@ -92,7 +96,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // UC-A1/R1: API d'ingestion des positions GPS
     Route::prefix('locations')->group(function () {
         Route::post('/batch', [LocationController::class, 'batch']);
-        Route::post('/fcm-token', [LocationController::class, 'updateFcmToken']);
         Route::get('/recent', [LocationController::class, 'recent']);
     });
 
