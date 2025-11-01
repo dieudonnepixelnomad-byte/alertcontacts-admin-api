@@ -185,7 +185,7 @@ class NotificationService
 
 
     /**
-     * UC-N6: Envoyer des notifications de sortie de zone de sécurité aux contacts assignés
+     * UC-N6: Envoyer des notifications de sortie de zone de sécurité au créateur de la zone
      */
     public function sendSafeZoneExitAlert(int $userId, SafeZone $zone): bool
     {
@@ -199,39 +199,44 @@ class NotificationService
                 return false;
             }
 
-            // Récupérer tous les contacts assignés à cette zone avec notifications activées
-            $assignedContacts = $zone->contacts()
-                ->wherePivot('is_active', true)
-                ->wherePivot('notify_exit', true)
-                ->get();
-
-            if ($assignedContacts->isEmpty()) {
-                Log::info('No contacts to notify for safe zone exit', [
+            // Récupérer le créateur/propriétaire de la zone
+            $zoneOwner = $zone->owner;
+            if (!$zoneOwner) {
+                Log::warning('Cannot send safe zone exit alert - zone owner not found', [
                     'user_id' => $userId,
-                    'zone_id' => $zone->id
+                    'zone_id' => $zone->id,
+                    'zone_owner_id' => $zone->owner_id
+                ]);
+                return false;
+            }
+
+            // Ne pas envoyer de notification si l'utilisateur qui sort est le créateur de la zone
+            if ($userId === $zoneOwner->id) {
+                Log::info('Safe zone exit alert skipped - user is the zone owner', [
+                    'user_id' => $userId,
+                    'zone_id' => $zone->id,
+                    'zone_name' => $zone->name
                 ]);
                 return true;
             }
 
-            $successCount = 0;
-            foreach ($assignedContacts as $contact) {
-                if ($this->sendSafeZoneExit($contact->id, $zone, $user)) {
-                    $successCount++;
-                }
+            // Envoyer la notification au créateur de la zone
+            $success = $this->sendSafeZoneExit($zoneOwner->id, $zone, $user);
+
+            if ($success) {
+                Log::info('Safe zone exit alert sent to zone owner', [
+                    'user_id' => $userId,
+                    'zone_id' => $zone->id,
+                    'zone_name' => $zone->name,
+                    'zone_owner_id' => $zoneOwner->id,
+                    'zone_owner_name' => $zoneOwner->name
+                ]);
             }
 
-            Log::info('Safe zone exit alerts sent', [
-                'user_id' => $userId,
-                'zone_id' => $zone->id,
-                'zone_name' => $zone->name,
-                'contacts_notified' => $successCount,
-                'total_contacts' => $assignedContacts->count()
-            ]);
-
-            return $successCount > 0;
+            return $success;
 
         } catch (\Exception $e) {
-            Log::error('Failed to send safe zone exit alerts', [
+            Log::error('Failed to send safe zone exit alert', [
                 'user_id' => $userId,
                 'zone_id' => $zone->id,
                 'error' => $e->getMessage()
@@ -241,7 +246,7 @@ class NotificationService
     }
 
     /**
-     * UC-N7: Envoyer un rappel de sortie de zone de sécurité
+     * UC-N7: Envoyer un rappel de sortie de zone de sécurité au créateur de la zone
      */
     public function sendSafeZoneExitReminder(int $userId, SafeZone $zone, int $reminderCount): bool
     {
@@ -255,14 +260,33 @@ class NotificationService
                 return false;
             }
 
-            // Récupérer tous les contacts assignés à cette zone avec notifications activées
-            $assignedContacts = $zone->contacts()
-                ->wherePivot('is_active', true)
-                ->wherePivot('notify_exit', true)
-                ->get();
+            // Récupérer le créateur/propriétaire de la zone
+            $zoneOwner = $zone->owner;
+            if (!$zoneOwner) {
+                Log::warning('Cannot send safe zone exit reminder - zone owner not found', [
+                    'user_id' => $userId,
+                    'zone_id' => $zone->id,
+                    'zone_owner_id' => $zone->owner_id,
+                    'reminder_count' => $reminderCount
+                ]);
+                return false;
+            }
 
-            if ($assignedContacts->isEmpty()) {
-                Log::info('No contacts to notify for safe zone exit reminder', [
+            // Ne pas envoyer de rappel si l'utilisateur qui sort est le créateur de la zone
+            if ($userId === $zoneOwner->id) {
+                Log::info('Safe zone exit reminder skipped - user is the zone owner', [
+                    'user_id' => $userId,
+                    'zone_id' => $zone->id,
+                    'zone_name' => $zone->name,
+                    'reminder_count' => $reminderCount
+                ]);
+                return true;
+            }
+
+            // Vérifier les heures calmes pour le créateur de la zone
+            if ($this->quietHoursService->isQuietTime($zoneOwner)) {
+                Log::info('Safe zone exit reminder skipped - quiet hours', [
+                    'zone_owner_id' => $zoneOwner->id,
                     'user_id' => $userId,
                     'zone_id' => $zone->id,
                     'reminder_count' => $reminderCount
@@ -270,46 +294,24 @@ class NotificationService
                 return true;
             }
 
-            $successCount = 0;
-            foreach ($assignedContacts as $contact) {
-                // Vérifier les heures calmes pour ce contact
-                if ($this->quietHoursService->isQuietTime($contact)) {
-                    Log::info('Safe zone exit reminder skipped - quiet hours', [
-                        'contact_id' => $contact->id,
-                        'user_id' => $userId,
-                        'zone_id' => $zone->id,
-                        'reminder_count' => $reminderCount
-                    ]);
-                    continue;
-                }
-
-                // Envoyer le rappel via Firebase
-                $success = $this->firebaseService->sendSafeZoneExitReminder($contact, $zone, $user, $reminderCount);
-                
-                if ($success) {
-                    $successCount++;
-                    Log::info('Safe zone exit reminder sent', [
-                        'contact_id' => $contact->id,
-                        'user_id' => $userId,
-                        'zone_id' => $zone->id,
-                        'reminder_count' => $reminderCount
-                    ]);
-                }
+            // Envoyer le rappel au créateur de la zone via Firebase
+            $success = $this->firebaseService->sendSafeZoneExitReminder($zoneOwner, $zone, $user, $reminderCount);
+            
+            if ($success) {
+                Log::info('Safe zone exit reminder sent to zone owner', [
+                    'zone_owner_id' => $zoneOwner->id,
+                    'zone_owner_name' => $zoneOwner->name,
+                    'user_id' => $userId,
+                    'zone_id' => $zone->id,
+                    'zone_name' => $zone->name,
+                    'reminder_count' => $reminderCount
+                ]);
             }
 
-            Log::info('Safe zone exit reminders sent', [
-                'user_id' => $userId,
-                'zone_id' => $zone->id,
-                'zone_name' => $zone->name,
-                'reminder_count' => $reminderCount,
-                'contacts_notified' => $successCount,
-                'total_contacts' => $assignedContacts->count()
-            ]);
-
-            return $successCount > 0;
+            return $success;
 
         } catch (\Exception $e) {
-            Log::error('Failed to send safe zone exit reminders', [
+            Log::error('Failed to send safe zone exit reminder', [
                 'user_id' => $userId,
                 'zone_id' => $zone->id,
                 'reminder_count' => $reminderCount,
