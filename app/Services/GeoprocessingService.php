@@ -187,58 +187,27 @@ class GeoprocessingService
                 );
             }
 
-            // Récupérer le dernier état connu pour cette zone
-            $lastStateResult = $this->getLastSafeZoneStateWithHistory($location->user_id, $zone->id);
-            $lastState = $lastStateResult['state'];
-            $hasHistory = $lastStateResult['has_history'];
-
-            Log::debug('Last safe zone state get', [
-                'user_id' => $location->user_id,
-                'location_id' => $location->id,
-                'safe_zone_id' => $zone->id,
-                'last_state' => $lastState,
-                'has_history' => $hasHistory
-            ]);
-
-            // Détecter les changements d'état (entrée/sortie) ou premier lancement
-            if ($isInside && (!$lastState || !$hasHistory)) {
-                // Entrée dans la zone OU premier lancement dans la zone
-                $reason = !$hasHistory ? 'First launch - user in zone' : 'User entered safe zone';
-                Log::debug($reason, [
-                    'user_id' => $location->user_id,
-                    'location_id' => $location->id,
-                    'safe_zone_id' => $zone->id,
-                    'distance' => $distance,
-                    'has_history' => $hasHistory
-                ]);
-                $this->handleSafeZoneEntry($location, $zone, $distance);
-                $this->recordSafeZoneEvent($location, $zone, 'enter', $distance);
-            } elseif (!$isInside && $lastState && $hasHistory) {
-                // Sortie de la zone (seulement si on a un historique)
-                Log::debug('User exited safe zone', [
+            if (!$isInside) {
+                // Utilisateur hors de la zone - Envoyer notification systématiquement
+                Log::info('User outside safe zone - sending notification', [
                     'user_id' => $location->user_id,
                     'location_id' => $location->id,
                     'safe_zone_id' => $zone->id,
                     'distance' => $distance
                 ]);
+                
                 $this->handleSafeZoneExit($location, $zone, $distance);
-                $this->recordSafeZoneEvent($location, $zone, 'exit', $distance);
+                
             } else {
-                $reason = !$hasHistory ? 'First launch - user outside zone' : ($isInside ? 'User still inside zone' : 'User still outside zone');
-                Log::debug('No state change detected for safe zone', [
+                // Utilisateur dans la zone - aucune action
+                Log::debug('User inside safe zone - no action', [
                     'user_id' => $location->user_id,
                     'location_id' => $location->id,
                     'safe_zone_id' => $zone->id,
-                    'is_inside' => $isInside,
-                    'last_state' => $lastState,
-                    'has_history' => $hasHistory,
                     'distance' => $distance,
-                    'reason' => $reason
+                    'reason' => 'User inside zone'
                 ]);
             }
-
-            // Mettre à jour l'état
-            $this->updateSafeZoneState($location->user_id, $zone->id, $isInside);
         }
     }
 
@@ -310,30 +279,6 @@ class GeoprocessingService
     }
 
     /**
-     * UC-G2: Gérer l'entrée dans une zone de sécurité
-     */
-    private function handleSafeZoneEntry(UserLocation $location, SafeZone $zone, float $distance): void
-    {
-        Log::info('User entered safe zone', [
-            'user_id' => $location->user_id,
-            'zone_id' => $zone->id,
-            'zone_name' => $zone->name,
-            'distance' => $distance
-        ]);
-
-        // Enregistrer l'activité d'entrée dans la zone de sécurité
-        $this->activityLogService->logEnterSafeZone($location->user_id, $zone->id, [
-            'distance' => $distance,
-            'zone_name' => $zone->name,
-            'latitude' => $location->latitude,
-            'longitude' => $location->longitude
-        ]);
-
-        // Notifier les proches assignés à cette zone
-        $this->notificationService->sendSafeZoneEntryAlert($location->user_id, $zone);
-    }
-
-    /**
      * UC-G2: Gérer la sortie d'une zone de sécurité
      */
     private function handleSafeZoneExit(UserLocation $location, SafeZone $zone, float $distance): void
@@ -365,96 +310,7 @@ class GeoprocessingService
         $this->notificationService->sendSafeZoneExitAlert($location->user_id, $zone);
     }
 
-    /**
-     * Récupérer le dernier état d'une zone de sécurité pour un utilisateur
-     */
-    private function getLastSafeZoneState(int $userId, int $zoneId): bool
-    {
-        Log::debug('Checking last safe zone state', [
-            'user_id' => $userId,
-            'zone_id' => $zoneId
-        ]);
-        // Récupérer le dernier événement pour cette zone et cet utilisateur
-        $lastEvent = SafeZoneEvent::where('user_id', $userId)
-            ->where('safe_zone_id', $zoneId)
-            ->orderBy('created_at', 'desc')
-            ->first();
 
-        if (!$lastEvent) {
-            Log::debug('No previous safe zone event found', [
-                'user_id' => $userId,
-                'zone_id' => $zoneId
-            ]);
-            // Aucun événement précédent, l'utilisateur n'était pas dans la zone
-            return false;
-        }
-
-        Log::debug('Last safe zone event found', [
-            'user_id' => $userId,
-            'zone_id' => $zoneId,
-            'event_type' => $lastEvent->event_type,
-            'created_at' => $lastEvent->created_at->toISOString()
-        ]);
-
-        // Si le dernier événement est 'entry', l'utilisateur était dans la zone
-        // Si le dernier événement est 'exit', l'utilisateur n'était pas dans la zone
-        return $lastEvent->event_type === 'entry';
-    }
-
-    /**
-     * Récupérer le dernier état d'une zone de sécurité avec information sur l'historique
-     */
-    private function getLastSafeZoneStateWithHistory(int $userId, int $zoneId): array
-    {
-        Log::debug('Checking last safe zone state with history', [
-            'user_id' => $userId,
-            'zone_id' => $zoneId
-        ]);
-        
-        // Récupérer le dernier événement pour cette zone et cet utilisateur
-        $lastEvent = SafeZoneEvent::where('user_id', $userId)
-            ->where('safe_zone_id', $zoneId)
-            ->orderBy('created_at', 'desc')
-            ->first();
-
-        if (!$lastEvent) {
-            Log::debug('No previous safe zone event found', [
-                'user_id' => $userId,
-                'zone_id' => $zoneId
-            ]);
-            // Aucun événement précédent = premier lancement
-            return [
-                'state' => false,
-                'has_history' => false
-            ];
-        }
-
-        Log::debug('Last safe zone event found', [
-            'user_id' => $userId,
-            'zone_id' => $zoneId,
-            'event_type' => $lastEvent->event_type,
-            'created_at' => $lastEvent->created_at->toISOString()
-        ]);
-
-        // Si le dernier événement est 'entry', l'utilisateur était dans la zone
-        // Si le dernier événement est 'exit', l'utilisateur n'était pas dans la zone
-        return [
-            'state' => $lastEvent->event_type === 'entry',
-            'has_history' => true
-        ];
-    }
-
-    /**
-     * Mettre à jour l'état d'une zone de sécurité pour un utilisateur
-     */
-    private function updateSafeZoneState(int $userId, int $zoneId, bool $isInside): void
-    {
-        Log::debug('Safe zone state updated', [
-            'user_id' => $userId,
-            'zone_id' => $zoneId,
-            'is_inside' => $isInside
-        ]);
-    }
 
     /**
      * Calculer la distance entre deux points GPS (en mètres)

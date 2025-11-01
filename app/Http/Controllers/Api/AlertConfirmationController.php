@@ -134,4 +134,72 @@ class AlertConfirmationController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Arrêter les notifications pour une alerte de zone de sécurité
+     */
+    public function stopNotifications(Request $request)
+    {
+        try {
+            $request->validate([
+                'alert_id' => 'required|integer|exists:pending_safe_zone_alerts,id'
+            ]);
+
+            $alertId = $request->input('alert_id');
+            $userId = Auth::id();
+
+            // Récupérer l'alerte
+            $alert = PendingSafeZoneAlert::with('safeZone')->find($alertId);
+
+            if (!$alert) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Alerte non trouvée'
+                ], 404);
+            }
+
+            // Vérifier que l'utilisateur connecté est le créateur de la zone de sécurité
+            if ($alert->safeZone->user_id !== $userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas autorisé à arrêter cette alerte'
+                ], 403);
+            }
+
+            // Marquer l'alerte comme confirmée (arrêter les notifications)
+            $alert->markAsConfirmed($userId);
+
+            Log::info('Notifications stopped manually by zone creator', [
+                'alert_id' => $alertId,
+                'user_id' => $userId,
+                'safe_zone_id' => $alert->safe_zone_id,
+                'safe_zone_name' => $alert->safeZone->name
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notifications arrêtées avec succès'
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de l'arrêt des notifications", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id(),
+                'alert_id' => $request->input('alert_id')
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'arrêt des notifications'
+            ], 500);
+        }
+    }
 }

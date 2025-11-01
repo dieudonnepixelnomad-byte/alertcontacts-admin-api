@@ -117,6 +117,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('alerts')->group(function () {
         Route::get('/pending', [App\Http\Controllers\Api\AlertConfirmationController::class, 'getPendingAlerts']);
         Route::post('/confirm', [App\Http\Controllers\Api\AlertConfirmationController::class, 'confirmSafeZoneAlert']);
+        Route::post('/stop', [App\Http\Controllers\Api\AlertConfirmationController::class, 'stopNotifications']);
     });
 
     // Feedback et suggestions

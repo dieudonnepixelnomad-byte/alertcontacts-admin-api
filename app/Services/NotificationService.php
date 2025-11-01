@@ -80,55 +80,7 @@ class NotificationService
         }
     }
 
-    /**
-     * UC-N2: Envoyer une notification d'entrée en zone de sécurité
-     * Nouvelle logique : pas de cooldown (selon les nouvelles spécifications)
-     */
-    public function sendSafeZoneEntry(int $contactId, SafeZone $zone, User $assignedUser): bool
-    {
-        try {
-            $contact = User::find($contactId);
-            if (!$contact) {
-                Log::warning('Cannot send safe zone entry - contact not found', [
-                    'contact_id' => $contactId,
-                    'zone_id' => $zone->id
-                ]);
-                return false;
-            }
 
-            // Vérifier les heures calmes
-            if ($this->quietHoursService->isQuietTime($contact)) {
-                Log::info('Safe zone entry notification skipped - quiet hours', [
-                    'contact_id' => $contactId,
-                    'zone_id' => $zone->id
-                ]);
-                return false;
-            }
-
-            // Envoyer la notification via Firebase
-            $success = $this->firebaseService->sendSafeZoneEntry($contact, $zone, $assignedUser);
-            
-            if ($success) {
-                Log::info('Safe zone entry notification sent', [
-                    'contact_id' => $contactId,
-                    'zone_id' => $zone->id,
-                    'assigned_user_id' => $assignedUser->id
-                ]);
-                
-                return true;
-            }
-
-            return false;
-
-        } catch (\Exception $e) {
-            Log::error('Failed to send safe zone entry notification', [
-                'contact_id' => $contactId,
-                'zone_id' => $zone->id,
-                'error' => $e->getMessage()
-            ]);
-            return false;
-        }
-    }
 
     /**
      * UC-N3: Envoyer une notification de sortie de zone de sécurité
@@ -230,61 +182,7 @@ class NotificationService
 
 
 
-    /**
-     * UC-N5: Envoyer des notifications d'entrée en zone de sécurité aux contacts assignés
-     */
-    public function sendSafeZoneEntryAlert(int $userId, SafeZone $zone): bool
-    {
-        try {
-            $user = User::find($userId);
-            if (!$user) {
-                Log::warning('Cannot send safe zone entry alert - user not found', [
-                    'user_id' => $userId,
-                    'zone_id' => $zone->id
-                ]);
-                return false;
-            }
 
-            // Récupérer tous les contacts assignés à cette zone avec notifications activées
-            $assignedContacts = $zone->contacts()
-                ->wherePivot('is_active', true)
-                ->wherePivot('notify_entry', true)
-                ->get();
-
-            if ($assignedContacts->isEmpty()) {
-                Log::info('No contacts to notify for safe zone entry', [
-                    'user_id' => $userId,
-                    'zone_id' => $zone->id
-                ]);
-                return true;
-            }
-
-            $successCount = 0;
-            foreach ($assignedContacts as $contact) {
-                if ($this->sendSafeZoneEntry($contact->id, $zone, $user)) {
-                    $successCount++;
-                }
-            }
-
-            Log::info('Safe zone entry alerts sent', [
-                'user_id' => $userId,
-                'zone_id' => $zone->id,
-                'zone_name' => $zone->name,
-                'contacts_notified' => $successCount,
-                'total_contacts' => $assignedContacts->count()
-            ]);
-
-            return $successCount > 0;
-
-        } catch (\Exception $e) {
-            Log::error('Failed to send safe zone entry alerts', [
-                'user_id' => $userId,
-                'zone_id' => $zone->id,
-                'error' => $e->getMessage()
-            ]);
-            return false;
-        }
-    }
 
     /**
      * UC-N6: Envoyer des notifications de sortie de zone de sécurité aux contacts assignés

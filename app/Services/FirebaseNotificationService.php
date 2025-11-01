@@ -63,31 +63,7 @@ class FirebaseNotificationService
         return $this->sendNotification($user->fcm_token, $title, $body, $data, 'high');
     }
 
-    /**
-     * Envoyer une notification d'entrée en zone de sécurité
-     */
-    public function sendSafeZoneEntry(User $user, SafeZone $safeZone, User $assignedUser): bool
-    {
-        if (!$user->fcm_token) {
-            Log::warning("Utilisateur {$user->id} n'a pas de token FCM");
-            return false;
-        }
 
-        Log::debug("Envoi de notification d'entrée en zone de sécurité à l'utilisateur {$safeZone->name}");
-
-        $title = "✅ Entrée en zone de sécurité";
-        $body = "{$assignedUser->name} est entré(e) dans la zone '{$safeZone->name}'";
-
-        $data = [
-            'type' => 'safe_zone_entry',
-            'safe_zone_id' => $safeZone->id,
-            'zone_name' => $safeZone->name,
-            'assigned_user_id' => $assignedUser->id,
-            'assigned_user_name' => $assignedUser->name,
-        ];
-
-        return $this->sendNotification($user->fcm_token, $title, $body, $data, 'normal');
-    }
 
     /**
      * Envoyer une notification de sortie de zone de sécurité
