@@ -280,6 +280,7 @@ class GeoprocessingService
 
     /**
      * UC-G2: Gérer la sortie d'une zone de sécurité
+     * Nouvelle logique : envoi systématique de notification à chaque détection hors zone
      */
     private function handleSafeZoneExit(UserLocation $location, SafeZone $zone, float $distance): void
     {
@@ -289,21 +290,6 @@ class GeoprocessingService
             'zone_name' => $zone->name,
             'distance' => $distance
         ]);
-
-        // Vérifier le cooldown pour éviter le spam de notifications (15 minutes minimum selon les consignes)
-        $cooldownKey = "safe_zone_exit_{$zone->id}_user_{$location->user_id}";
-        
-        if ($this->cooldownService->isInCooldown($cooldownKey)) {
-            Log::debug('Safe zone exit notification skipped due to 15min cooldown', [
-                'user_id' => $location->user_id,
-                'zone_id' => $zone->id,
-                'zone_name' => $zone->name,
-                'distance' => $distance,
-                'cooldown_key' => $cooldownKey,
-                'remaining_time' => $this->cooldownService->getRemainingTime($cooldownKey)
-            ]);
-            return;
-        }
 
         // Enregistrer l'événement de sortie de la zone de sécurité
         $safeZoneEvent = $this->recordSafeZoneEvent($location, $zone, 'exit', $distance);
@@ -316,29 +302,35 @@ class GeoprocessingService
             'longitude' => $location->longitude
         ]);
 
-        // Définir le cooldown de 15 minutes (900 secondes) selon les consignes du projet
-        $this->cooldownService->setCooldown($cooldownKey, 900, [
-            'type' => 'safe_zone_exit',
-            'user_id' => $location->user_id,
-            'zone_id' => $zone->id,
-            'zone_name' => $zone->name
-        ]);
+        // Vérifier si les notifications de sortie sont activées pour cet utilisateur
+        $assignment = $zone->assignments()
+            ->where('assigned_user_id', $location->user_id)
+            ->where('is_active', true)
+            ->first();
 
-        // Créer une alerte en attente pour les rappels périodiques si l'événement a été créé avec succès
-        if ($safeZoneEvent) {
-            $this->createPendingSafeZoneAlert($location->user_id, $zone->id, $safeZoneEvent->id);
+        if ($assignment && $assignment->notify_exit) {
+            // Créer une alerte en attente pour les rappels périodiques si l'événement a été créé avec succès
+            if ($safeZoneEvent) {
+                $this->createPendingSafeZoneAlert($location->user_id, $zone->id, $safeZoneEvent->id);
+            }
+
+            // Notifier les proches assignés à cette zone - SYSTÉMATIQUEMENT à chaque détection
+            $this->notificationService->sendSafeZoneExitAlert($location->user_id, $zone);
+
+            Log::info('Safe zone exit notification sent (no cooldown)', [
+                'user_id' => $location->user_id,
+                'zone_id' => $zone->id,
+                'zone_name' => $zone->name,
+                'distance' => $distance
+            ]);
+        } else {
+            Log::info('Safe zone exit notification skipped - notify_exit disabled', [
+                'user_id' => $location->user_id,
+                'zone_id' => $zone->id,
+                'zone_name' => $zone->name,
+                'distance' => $distance
+            ]);
         }
-
-        // Notifier les proches assignés à cette zone (première alerte)
-        $this->notificationService->sendSafeZoneExitAlert($location->user_id, $zone);
-
-        Log::info('Safe zone exit notification sent with cooldown set', [
-            'user_id' => $location->user_id,
-            'zone_id' => $zone->id,
-            'zone_name' => $zone->name,
-            'cooldown_duration' => '15 minutes',
-            'cooldown_key' => $cooldownKey
-        ]);
     }
 
 

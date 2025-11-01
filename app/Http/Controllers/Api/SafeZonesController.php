@@ -568,4 +568,215 @@ class SafeZonesController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * @OA\Put(
+     *     path="/api/safe-zones/{id}/notification-settings",
+     *     tags={"Safe Zones"},
+     *     summary="Mettre à jour les paramètres de notification",
+     *     description="Met à jour les paramètres de notification pour l'assignation de l'utilisateur connecté à une zone de sécurité",
+     *     security={{"sanctum": {}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="ID de la zone de sécurité",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="notify_entry", type="boolean", example=true, description="Recevoir des notifications d'entrée dans la zone"),
+     *             @OA\Property(property="notify_exit", type="boolean", example=false, description="Recevoir des notifications de sortie de la zone")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Paramètres de notification mis à jour avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Paramètres de notification mis à jour avec succès"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="notify_entry", type="boolean"),
+     *                 @OA\Property(property="notify_exit", type="boolean")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Zone ou assignation non trouvée",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Erreur de validation",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
+     * Mettre à jour les paramètres de notification pour une assignation
+     */
+    public function updateNotificationSettings(SafeZone $safeZone): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            // Valider les données d'entrée
+            $validated = request()->validate([
+                'notify_entry' => 'boolean',
+                'notify_exit' => 'boolean',
+            ]);
+
+            // Trouver l'assignation de l'utilisateur connecté pour cette zone
+            $assignment = SafeZoneAssignment::where('safe_zone_id', $safeZone->id)
+                ->where('assigned_user_id', $user->id)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$assignment) {
+                return response()->json([
+                    'success' => false,
+                    'error' => [
+                        'code' => 'ASSIGNMENT_NOT_FOUND',
+                        'message' => 'Aucune assignation active trouvée pour cette zone de sécurité.',
+                    ]
+                ], 404);
+            }
+
+            // Mettre à jour les paramètres de notification
+            $updateData = [];
+            if (isset($validated['notify_entry'])) {
+                $updateData['notify_entry'] = $validated['notify_entry'];
+            }
+            if (isset($validated['notify_exit'])) {
+                $updateData['notify_exit'] = $validated['notify_exit'];
+            }
+
+            if (!empty($updateData)) {
+                $assignment->update($updateData);
+
+                // Enregistrer l'activité
+                $this->activityLogService->logZone(
+                    $user->id,
+                    'update_notification_settings',
+                    'SafeZoneAssignment',
+                    $assignment->id,
+                    [
+                        'safe_zone_name' => $safeZone->name,
+                        'notify_entry' => $assignment->notify_entry,
+                        'notify_exit' => $assignment->notify_exit,
+                    ]
+                );
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paramètres de notification mis à jour avec succès.',
+                'data' => [
+                    'notify_entry' => $assignment->notify_entry,
+                    'notify_exit' => $assignment->notify_exit,
+                ]
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code' => 'VALIDATION_ERROR',
+                    'message' => 'Données de validation invalides.',
+                    'details' => $e->errors()
+                ]
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code' => 'NOTIFICATION_SETTINGS_UPDATE_ERROR',
+                    'message' => 'Erreur lors de la mise à jour des paramètres de notification.',
+                    'details' => config('app.debug') ? $e->getMessage() : null
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/safe-zones/my-assignments",
+     *     tags={"Safe Zones"},
+     *     summary="Récupérer mes assignations de zones de sécurité",
+     *     description="Récupère toutes les assignations actives de l'utilisateur connecté avec leurs paramètres de notification",
+     *     security={{"sanctum": {}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Liste des assignations récupérée avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(property="id", type="integer", example=1),
+     *                     @OA\Property(property="safe_zone_id", type="integer", example=1),
+     *                     @OA\Property(property="safe_zone_name", type="string", example="Maison"),
+     *                     @OA\Property(property="safe_zone_icon", type="string", example="home"),
+     *                     @OA\Property(property="assigned_by_name", type="string", example="Marie Dupont"),
+     *                     @OA\Property(property="notify_entry", type="boolean", example=true),
+     *                     @OA\Property(property="notify_exit", type="boolean", example=false),
+     *                     @OA\Property(property="assigned_at", type="string", format="date-time"),
+     *                     @OA\Property(property="accepted_at", type="string", format="date-time", nullable=true)
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Non authentifié",
+     *         @OA\JsonContent(ref="#/components/schemas/ApiResponse")
+     *     )
+     * )
+     * 
+     * Récupérer les assignations de zones de sécurité de l'utilisateur connecté
+     */
+    public function getMyAssignments(): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            $assignments = SafeZoneAssignment::where('assigned_user_id', $user->id)
+                ->where('is_active', true)
+                ->with(['safeZone', 'assignedByUser'])
+                ->get()
+                ->map(function ($assignment) {
+                    return [
+                        'id' => $assignment->id,
+                        'safe_zone_id' => $assignment->safe_zone_id,
+                        'safe_zone_name' => $assignment->safeZone->name,
+                        'safe_zone_icon' => $assignment->safeZone->icon,
+                        'assigned_by_name' => $assignment->assignedByUser->name,
+                        'notify_entry' => $assignment->notify_entry,
+                        'notify_exit' => $assignment->notify_exit,
+                        'assigned_at' => $assignment->assigned_at->toISOString(),
+                        'accepted_at' => $assignment->accepted_at?->toISOString(),
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $assignments
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code' => 'ASSIGNMENTS_FETCH_ERROR',
+                    'message' => 'Erreur lors de la récupération des assignations.',
+                    'details' => config('app.debug') ? $e->getMessage() : null
+                ]
+            ], 500);
+        }
+    }
 }

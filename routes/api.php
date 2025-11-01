@@ -44,8 +44,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/safe-zones', [SafeZonesController::class, 'store']);
     Route::put('/safe-zones/{safeZone}', [SafeZonesController::class, 'update']);
     Route::delete('/safe-zones/{safeZone}', [SafeZonesController::class, 'destroy']);
-    // Assignation de contacts
+    // Assignations
+    Route::get('/safe-zones/my-assignments', [SafeZonesController::class, 'getMyAssignments']);
     Route::post('/safe-zones/{safeZone}/assign', [SafeZonesController::class, 'assignContacts']);
+    // Paramètres de notification
+    Route::put('/safe-zones/{safeZone}/notification-settings', [SafeZonesController::class, 'updateNotificationSettings']);
 
     // Routes pour les zones de danger
     Route::get('/danger-zones', [DangerZonesController::class, 'index']);
