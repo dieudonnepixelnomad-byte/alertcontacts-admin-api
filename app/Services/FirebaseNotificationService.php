@@ -46,7 +46,7 @@ class FirebaseNotificationService
         }
 
         $title = "⚠️ Zone de danger détectée";
-        $body = "Vous approchez d'une zone de {$dangerZone->type} à {$this->formatDistance($distance)}";
+        $body = "Vous approchez d'une zone de {$dangerZone->title} à {$this->formatDistance($distance)}";
 
         $data = [
             'type' => 'danger_zone_alert',
