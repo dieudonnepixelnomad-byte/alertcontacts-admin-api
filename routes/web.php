@@ -9,3 +9,6 @@ Route::get('/', function () {
 
 // Route pour gérer les invitations AlertContact
 Route::get('/invite', [InvitationController::class, 'show'])->name('invitation.show');
+
+// Route pour les invitations partagées (URL générée par Flutter)
+Route::get('/invitations/accept', [InvitationController::class, 'show'])->name('invitation.accept');
