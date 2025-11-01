@@ -115,6 +115,13 @@ class GeoprocessingService
             $randomIndex = array_rand($nearbyZones);
             $selectedZone = $nearbyZones[$randomIndex];
 
+            Log::debug('Checking if notification should be sent for danger zone', [
+                'user_id' => $location->user_id,
+                'location_id' => $location->id,
+                'danger_zone_name' => $selectedZone['zone']->title,
+                'distance' => $selectedZone['distance']
+            ]);
+
             Log::debug('Random zone selected for notification check', [
                 'user_id' => $location->user_id,
                 'location_id' => $location->id,
