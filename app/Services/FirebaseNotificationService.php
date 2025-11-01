@@ -51,6 +51,7 @@ class FirebaseNotificationService
         $data = [
             'type' => 'danger_zone_alert',
             'danger_zone_id' => $dangerZone->id,
+            'zone_name' => $dangerZone->title,
             'distance' => $distance,
             'severity' => $dangerZone->severity,
             'latitude' => $dangerZone->center_lat,
@@ -76,6 +77,7 @@ class FirebaseNotificationService
         $data = [
             'type' => 'safe_zone_entry',
             'safe_zone_id' => $safeZone->id,
+            'zone_name' => $safeZone->name,
             'assigned_user_id' => $assignedUser->id,
             'assigned_user_name' => $assignedUser->name,
         ];
@@ -99,6 +101,7 @@ class FirebaseNotificationService
         $data = [
             'type' => 'safe_zone_exit',
             'safe_zone_id' => $safeZone->id,
+            'zone_name' => $safeZone->name,
             'assigned_user_id' => $assignedUser->id,
             'assigned_user_name' => $assignedUser->name,
         ];
@@ -122,6 +125,7 @@ class FirebaseNotificationService
         $data = [
             'type' => 'safe_zone_exit_reminder',
             'safe_zone_id' => $safeZone->id,
+            'zone_name' => $safeZone->name,
             'assigned_user_id' => $assignedUser->id,
             'assigned_user_name' => $assignedUser->name,
             'reminder_count' => $reminderCount,
