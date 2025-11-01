@@ -73,12 +73,15 @@ class PendingSafeZoneAlert extends Model
 
     /**
      * Scope pour les alertes qui nécessitent un rappel
+     * Limite à 4 rappels maximum pour éviter le spam infini
      */
-    public function scopeNeedingReminder($query, int $reminderIntervalMinutes = 5)
+    public function scopeNeedingReminder($query, int $reminderIntervalMinutes = 15)
     {
         $cutoffTime = now()->subMinutes($reminderIntervalMinutes);
+        $maxReminders = 4; // Maximum 4 rappels (1 heure de rappels toutes les 15 minutes)
         
         return $query->unconfirmed()
+            ->where('reminder_count', '<', $maxReminders) // Limiter le nombre de rappels
             ->where(function ($q) use ($cutoffTime) {
                 $q->whereNull('last_reminder_sent_at')
                   ->where('first_alert_sent_at', '<=', $cutoffTime)
@@ -111,10 +114,17 @@ class PendingSafeZoneAlert extends Model
 
     /**
      * Vérifier si l'alerte peut recevoir un rappel
+     * Limite à 4 rappels maximum pour éviter le spam infini
      */
-    public function canReceiveReminder(int $reminderIntervalMinutes = 5): bool
+    public function canReceiveReminder(int $reminderIntervalMinutes = 15): bool
     {
         if ($this->confirmed) {
+            return false;
+        }
+
+        // Vérifier la limite de rappels (maximum 4)
+        $maxReminders = 4;
+        if ($this->reminder_count >= $maxReminders) {
             return false;
         }
 

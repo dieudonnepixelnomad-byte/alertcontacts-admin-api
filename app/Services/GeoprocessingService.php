@@ -290,6 +290,21 @@ class GeoprocessingService
             'distance' => $distance
         ]);
 
+        // Vérifier le cooldown pour éviter le spam de notifications (15 minutes minimum selon les consignes)
+        $cooldownKey = "safe_zone_exit_{$zone->id}_user_{$location->user_id}";
+        
+        if ($this->cooldownService->isInCooldown($cooldownKey)) {
+            Log::debug('Safe zone exit notification skipped due to 15min cooldown', [
+                'user_id' => $location->user_id,
+                'zone_id' => $zone->id,
+                'zone_name' => $zone->name,
+                'distance' => $distance,
+                'cooldown_key' => $cooldownKey,
+                'remaining_time' => $this->cooldownService->getRemainingTime($cooldownKey)
+            ]);
+            return;
+        }
+
         // Enregistrer l'événement de sortie de la zone de sécurité
         $safeZoneEvent = $this->recordSafeZoneEvent($location, $zone, 'exit', $distance);
 
@@ -301,6 +316,14 @@ class GeoprocessingService
             'longitude' => $location->longitude
         ]);
 
+        // Définir le cooldown de 15 minutes (900 secondes) selon les consignes du projet
+        $this->cooldownService->setCooldown($cooldownKey, 900, [
+            'type' => 'safe_zone_exit',
+            'user_id' => $location->user_id,
+            'zone_id' => $zone->id,
+            'zone_name' => $zone->name
+        ]);
+
         // Créer une alerte en attente pour les rappels périodiques si l'événement a été créé avec succès
         if ($safeZoneEvent) {
             $this->createPendingSafeZoneAlert($location->user_id, $zone->id, $safeZoneEvent->id);
@@ -308,6 +331,14 @@ class GeoprocessingService
 
         // Notifier les proches assignés à cette zone (première alerte)
         $this->notificationService->sendSafeZoneExitAlert($location->user_id, $zone);
+
+        Log::info('Safe zone exit notification sent with cooldown set', [
+            'user_id' => $location->user_id,
+            'zone_id' => $zone->id,
+            'zone_name' => $zone->name,
+            'cooldown_duration' => '15 minutes',
+            'cooldown_key' => $cooldownKey
+        ]);
     }
 
 

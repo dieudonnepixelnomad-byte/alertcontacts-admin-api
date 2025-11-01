@@ -32,8 +32,8 @@ class SendSafeZoneExitReminders implements ShouldQueue
     {
         Log::info('Starting safe zone exit reminders job');
 
-        // Récupérer toutes les alertes qui nécessitent un rappel (toutes les 5 minutes)
-        $pendingAlerts = PendingSafeZoneAlert::needingReminder(5)
+        // Récupérer toutes les alertes qui nécessitent un rappel (toutes les 15 minutes selon les consignes)
+        $pendingAlerts = PendingSafeZoneAlert::needingReminder(15)
             ->with(['user', 'safeZone', 'safeZoneEvent'])
             ->get();
 
@@ -50,6 +50,18 @@ class SendSafeZoneExitReminders implements ShouldQueue
                     'reminder_count' => $alert->reminder_count
                 ]);
 
+                // Vérifier si on a atteint la limite de rappels
+                if ($alert->reminder_count >= 4) {
+                    Log::info('Maximum reminders reached for alert - stopping periodic notifications', [
+                        'alert_id' => $alert->id,
+                        'user_id' => $alert->user_id,
+                        'safe_zone_id' => $alert->safe_zone_id,
+                        'reminder_count' => $alert->reminder_count,
+                        'max_reminders' => 4
+                    ]);
+                    continue;
+                }
+
                 // Envoyer le rappel systématiquement (notifications périodiques)
                 $this->notificationService->sendSafeZoneExitReminder(
                     $alert->user_id,
@@ -64,7 +76,8 @@ class SendSafeZoneExitReminders implements ShouldQueue
                     'alert_id' => $alert->id,
                     'user_id' => $alert->user_id,
                     'reminder_count' => $alert->reminder_count,
-                    'safe_zone_name' => $alert->safeZone->name
+                    'safe_zone_name' => $alert->safeZone->name,
+                    'remaining_reminders' => 4 - $alert->reminder_count
                 ]);
 
             } catch (\Exception $e) {
