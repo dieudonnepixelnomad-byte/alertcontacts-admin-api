@@ -13,13 +13,13 @@ use Carbon\Carbon;
 
 /**
  * Job de nettoyage automatique des données anciennes
- * 
+ *
  * Ce job supprime les données anciennes des tables critiques pour éviter
  * l'accumulation excessive de données et maintenir les performances.
- * 
+ *
  * Tables nettoyées :
  * - user_locations (30 jours)
- * - telescope_entries (7 jours) 
+ * - telescope_entries (7 jours)
  * - user_activities (90 jours)
  * - safe_zone_events (180 jours)
  * - cooldowns (expirés)
@@ -58,14 +58,14 @@ class CleanupOldDataJob implements ShouldQueue
         // Charger la configuration depuis config/cleanup.php
         $this->retentionConfig = collect(config('cleanup.retention', []))
             ->mapWithKeys(function ($config, $table) {
-                return [$table => $config['days'] ?? 30];
+                return [$table => $config['days'] ?? 10];
             })
             ->toArray();
 
         // Configuration par défaut si le fichier config n'existe pas
         if (empty($this->retentionConfig)) {
             $this->retentionConfig = [
-                'user_locations' => 30,
+                'user_locations' => 5,
                 'telescope_entries' => 7,
                 'user_activities' => 90,
                 'safe_zone_events' => 180,
@@ -152,9 +152,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('created_at', '<', $cutoffDate)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             // Pause pour éviter la surcharge
             if ($deleted > 0) {
                 usleep(100000); // 100ms
@@ -179,16 +179,16 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('created_at', '<', $cutoffDate)
                 ->limit($this->batchSize)
                 ->pluck('uuid');
-            
+
             if ($uuids->isEmpty()) {
                 break;
             }
-            
+
             // Supprimer les tags correspondants
             DB::table('telescope_entries_tags')
                 ->whereIn('entry_uuid', $uuids)
                 ->delete();
-            
+
             usleep(25000); // 25ms
         } while (!$uuids->isEmpty());
 
@@ -198,9 +198,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('created_at', '<', $cutoffDate)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(50000); // 50ms
             }
@@ -222,9 +222,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('created_at', '<', $cutoffDate)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(50000); // 50ms
             }
@@ -246,9 +246,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('created_at', '<', $cutoffDate)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(50000); // 50ms
             }
@@ -270,9 +270,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('expires_at', '<', $now)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(25000); // 25ms
             }
@@ -295,9 +295,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('created_at', '<', $cutoffJobs)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(25000);
             }
@@ -310,9 +310,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('failed_at', '<', $cutoffFailed)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(25000);
             }
@@ -325,9 +325,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('created_at', '<', $cutoffBatches)
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(25000);
             }
@@ -348,9 +348,9 @@ class CleanupOldDataJob implements ShouldQueue
                 ->where('expires_at', '<', Carbon::now())
                 ->limit($this->batchSize)
                 ->delete();
-            
+
             $totalDeleted += $deleted;
-            
+
             if ($deleted > 0) {
                 usleep(25000);
             }
@@ -366,7 +366,7 @@ class CleanupOldDataJob implements ShouldQueue
     {
         $tables = [
             'user_locations',
-            'telescope_entries', 
+            'telescope_entries',
             'user_activities',
             'safe_zone_events',
             'cooldowns'
