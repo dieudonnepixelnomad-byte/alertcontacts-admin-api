@@ -8,7 +8,7 @@
 # =============================================================================
 
 # Configuration
-PROJECT_DIR="/home/u123456789/domains/alertcontact.sinestro.fr/public_html"
+PROJECT_DIR="/home/u918130518/domains/alertcontacts.net/public_html/mobile"
 LOG_DIR="$PROJECT_DIR/storage/logs"
 PID_DIR="$PROJECT_DIR/storage/app/pids"
 
@@ -48,13 +48,13 @@ stop_service() {
     local pid_file="$2"
     local process_pattern="$3"
     local force_kill="${4:-false}"
-    
+
     log_info "Arrêt de $service_name..."
-    
+
     # Vérifier si le fichier PID existe
     if [[ ! -f "$pid_file" ]]; then
         log_warning "$service_name: Aucun fichier PID trouvé"
-        
+
         # Chercher les processus correspondants au pattern
         if [[ -n "$process_pattern" ]]; then
             local running_pids=$(pgrep -f "$process_pattern" 2>/dev/null)
@@ -80,7 +80,7 @@ stop_service() {
         fi
         return 0
     fi
-    
+
     # Lire le PID
     local pid=$(cat "$pid_file" 2>/dev/null)
     if [[ -z "$pid" ]]; then
@@ -88,14 +88,14 @@ stop_service() {
         rm -f "$pid_file"
         return 1
     fi
-    
+
     # Vérifier si le processus existe
     if ! kill -0 "$pid" 2>/dev/null; then
         log_warning "$service_name: Processus déjà arrêté (PID: $pid)"
         rm -f "$pid_file"
         return 0
     fi
-    
+
     # Tentative d'arrêt gracieux avec TERM
     log_info "$service_name: Envoi du signal TERM au processus $pid"
     if kill -TERM "$pid" 2>/dev/null; then
@@ -107,14 +107,14 @@ stop_service() {
             echo -n "."
         done
         echo ""
-        
+
         # Vérifier si le processus s'est arrêté
         if kill -0 "$pid" 2>/dev/null; then
             if [[ "$force_kill" == "true" ]]; then
                 log_warning "$service_name: Arrêt forcé nécessaire (KILL)"
                 kill -KILL "$pid" 2>/dev/null
                 sleep 1
-                
+
                 if kill -0 "$pid" 2>/dev/null; then
                     log_error "$service_name: Impossible d'arrêter le processus $pid"
                     return 1
@@ -133,7 +133,7 @@ stop_service() {
         log_error "$service_name: Impossible d'envoyer le signal au processus $pid"
         return 1
     fi
-    
+
     # Supprimer le fichier PID
     rm -f "$pid_file"
     return 0
@@ -142,16 +142,16 @@ stop_service() {
 # Fonction pour nettoyer les processus orphelins
 cleanup_orphan_processes() {
     log_info "Nettoyage des processus orphelins..."
-    
+
     local patterns=(
         "artisan schedule:work"
         "artisan queue:work"
         "artisan app:cleanup-old-data"
         "monitoring"
     )
-    
+
     local orphans_found=0
-    
+
     for pattern in "${patterns[@]}"; do
         local orphan_pids=$(pgrep -f "$pattern" 2>/dev/null)
         if [[ -n "$orphan_pids" ]]; then
@@ -164,11 +164,11 @@ cleanup_orphan_processes() {
             done
         fi
     done
-    
+
     if [[ $orphans_found -gt 0 ]]; then
         log_info "Attente de l'arrêt des processus orphelins..."
         sleep 3
-        
+
         # Vérification finale et arrêt forcé si nécessaire
         for pattern in "${patterns[@]}"; do
             local remaining_pids=$(pgrep -f "$pattern" 2>/dev/null)
@@ -179,7 +179,7 @@ cleanup_orphan_processes() {
                 done
             fi
         done
-        
+
         log_success "Nettoyage des processus orphelins terminé"
     else
         log_success "Aucun processus orphelin détecté"
@@ -189,7 +189,7 @@ cleanup_orphan_processes() {
 # Fonction pour nettoyer les fichiers temporaires
 cleanup_temp_files() {
     log_info "Nettoyage des fichiers temporaires..."
-    
+
     # Nettoyer les fichiers PID obsolètes
     local stale_pids=0
     if [[ -d "$PID_DIR" ]]; then
@@ -204,14 +204,14 @@ cleanup_temp_files() {
             fi
         done
     fi
-    
+
     # Nettoyer les fichiers de lock Laravel
     local lock_files=$(find "$PROJECT_DIR/storage/framework" -name "*.lock" 2>/dev/null)
     if [[ -n "$lock_files" ]]; then
         log_info "Suppression des fichiers de lock Laravel..."
         echo "$lock_files" | xargs rm -f
     fi
-    
+
     # Nettoyer le cache des sessions
     if [[ -d "$PROJECT_DIR/storage/framework/sessions" ]]; then
         local old_sessions=$(find "$PROJECT_DIR/storage/framework/sessions" -type f -mtime +1 2>/dev/null)
@@ -220,7 +220,7 @@ cleanup_temp_files() {
             echo "$old_sessions" | xargs rm -f
         fi
     fi
-    
+
     log_success "Nettoyage terminé ($stale_pids fichiers PID obsolètes supprimés)"
 }
 
@@ -228,11 +228,11 @@ cleanup_temp_files() {
 show_stop_summary() {
     echo ""
     log_header "=== Résumé de l'arrêt ==="
-    
+
     # Vérifier qu'aucun service n'est encore actif
     local remaining_processes=0
     local services=("scheduler" "queue_workers" "cleanup" "monitoring")
-    
+
     for service in "${services[@]}"; do
         local pid_file="$PID_DIR/${service}.pid"
         if [[ -f "$pid_file" ]]; then
@@ -243,10 +243,10 @@ show_stop_summary() {
             fi
         fi
     done
-    
+
     # Vérifier les processus Laravel restants
     local laravel_processes=$(pgrep -f "artisan" 2>/dev/null | wc -l)
-    
+
     echo ""
     if [[ $remaining_processes -eq 0 ]] && [[ $laravel_processes -eq 0 ]]; then
         log_success "🎉 Tous les services ont été arrêtés avec succès!"
@@ -262,7 +262,7 @@ show_stop_summary() {
 main() {
     local force_kill=false
     local cleanup_only=false
-    
+
     # Traitement des arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -295,79 +295,79 @@ main() {
                 ;;
         esac
     done
-    
+
     local start_time=$(date +%s)
-    
+
     echo ""
     log_header "╔══════════════════════════════════════════════════════════════╗"
     log_header "║                ARRÊT DES SERVICES ALERTCONTACT               ║"
     log_header "╚══════════════════════════════════════════════════════════════╝"
     echo ""
     log_info "Début de l'arrêt: $(date)"
-    
+
     if [[ "$force_kill" == "true" ]]; then
         log_warning "Mode arrêt forcé activé (SIGKILL)"
     fi
-    
+
     # Vérifier que nous sommes dans le bon répertoire
     if [[ ! -f "$PROJECT_DIR/artisan" ]]; then
         log_error "Fichier artisan non trouvé dans $PROJECT_DIR"
         log_error "Veuillez vérifier le chemin du projet"
         exit 1
     fi
-    
+
     if [[ "$cleanup_only" == "true" ]]; then
         cleanup_temp_files
         exit 0
     fi
-    
+
     # Arrêter tous les services dans l'ordre inverse du démarrage
     local services_stopped=0
     local total_services=4
-    
+
     echo ""
     log_info "Arrêt des services en cours..."
-    
+
     # 1. Arrêter le monitoring en premier
     if stop_service "Monitoring" "$PID_DIR/monitoring.pid" "monitoring" "$force_kill"; then
         ((services_stopped++))
     fi
-    
+
     # 2. Arrêter le processus de cleanup
     if stop_service "Processus de Cleanup" "$PID_DIR/cleanup.pid" "app:cleanup-old-data" "$force_kill"; then
         ((services_stopped++))
     fi
-    
+
     # 3. Arrêter les workers de queue
     if stop_service "Workers de Queue" "$PID_DIR/queue_workers.pid" "queue:work" "$force_kill"; then
         ((services_stopped++))
     fi
-    
+
     # 4. Arrêter le scheduler en dernier
     if stop_service "Scheduler Laravel" "$PID_DIR/scheduler.pid" "schedule:work" "$force_kill"; then
         ((services_stopped++))
     fi
-    
+
     echo ""
     log_info "Services traités: $services_stopped/$total_services"
-    
+
     # Nettoyer les processus orphelins
     cleanup_orphan_processes
-    
+
     # Nettoyer les fichiers temporaires
     cleanup_temp_files
-    
+
     # Afficher le résumé
     show_stop_summary
-    
+
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
+
     echo ""
     log_info "Durée de l'arrêt: ${duration}s"
     log_info "Fin de l'arrêt: $(date)"
     echo ""
-    
+
     # Code de sortie basé sur le succès de l'arrêt
     if [[ $services_stopped -eq $total_services ]]; then
         exit 0
