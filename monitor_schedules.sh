@@ -99,6 +99,7 @@ check_cron_status() {
     
     # Vérifier si le cron principal est configuré
     local cron_check=$(crontab -l 2>/dev/null | grep -c "schedule:run" || echo "0")
+    cron_check=$(echo "$cron_check" | tr -d '\n\r' | head -1)
     
     if [ "$cron_check" -eq 0 ]; then
         print_status "❌ Aucun cron Laravel détecté dans crontab" "$RED"
@@ -113,16 +114,29 @@ check_cron_status() {
     if [ -f "$SCHEDULE_LOG" ]; then
         local last_run=$(tail -1 "$SCHEDULE_LOG" 2>/dev/null | grep -o '\[.*\]' | head -1 | tr -d '[]')
         if [ -n "$last_run" ]; then
-            local last_run_timestamp=$(date -j -f "%Y-%m-%d %H:%M:%S" "$last_run" "+%s" 2>/dev/null)
-            local current_timestamp=$(date "+%s")
-            local time_diff=$((current_timestamp - last_run_timestamp))
-            
-            if [ $time_diff -lt 120 ]; then  # Moins de 2 minutes
-                print_status "✅ Scheduler actif (dernière exécution: il y a ${time_diff}s)" "$GREEN"
-            elif [ $time_diff -lt 300 ]; then  # Moins de 5 minutes
-                print_status "⚠️  Scheduler possiblement inactif (dernière exécution: il y a ${time_diff}s)" "$YELLOW"
+            # Compatibilité Linux/macOS pour le parsing de date
+            local last_run_timestamp
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # macOS
+                last_run_timestamp=$(date -j -f "%Y-%m-%d %H:%M:%S" "$last_run" "+%s" 2>/dev/null)
             else
-                print_status "❌ Scheduler inactif (dernière exécution: il y a ${time_diff}s)" "$RED"
+                # Linux
+                last_run_timestamp=$(date -d "$last_run" "+%s" 2>/dev/null)
+            fi
+            
+            if [ -n "$last_run_timestamp" ] && [ "$last_run_timestamp" -gt 0 ]; then
+                local current_timestamp=$(date "+%s")
+                local time_diff=$((current_timestamp - last_run_timestamp))
+                
+                if [ $time_diff -lt 120 ]; then  # Moins de 2 minutes
+                    print_status "✅ Scheduler actif (dernière exécution: il y a ${time_diff}s)" "$GREEN"
+                elif [ $time_diff -lt 300 ]; then  # Moins de 5 minutes
+                    print_status "⚠️  Scheduler possiblement inactif (dernière exécution: il y a ${time_diff}s)" "$YELLOW"
+                else
+                    print_status "❌ Scheduler inactif (dernière exécution: il y a ${time_diff}s)" "$RED"
+                fi
+            else
+                print_status "⚠️  Erreur de parsing de la date: $last_run" "$YELLOW"
             fi
         else
             print_status "⚠️  Impossible de déterminer la dernière exécution" "$YELLOW"
@@ -152,6 +166,10 @@ analyze_schedule_logs() {
         local frequency="${EXPECTED_SCHEDULES[$schedule_name]}"
         local count=$(grep -c "$schedule_name" "$SCHEDULE_LOG" 2>/dev/null || echo "0")
         local recent_count=$(grep "$today\|$yesterday" "$SCHEDULE_LOG" 2>/dev/null | grep -c "$schedule_name" || echo "0")
+        
+        # Nettoyer les variables des caractères indésirables
+        count=$(echo "$count" | tr -d '\n\r' | head -1)
+        recent_count=$(echo "$recent_count" | tr -d '\n\r' | head -1)
         
         printf "  %-25s %-15s Total: %-3s Récent: %-3s" "$schedule_name" "($frequency)" "$count" "$recent_count"
         
@@ -258,6 +276,7 @@ check_scheduled_jobs() {
     
     # Vérifier les jobs échoués récents
     local failed_jobs=$(php artisan queue:failed --format=json 2>/dev/null | jq -r '.[] | select(.failed_at | fromdateiso8601 > (now - 86400)) | .payload' 2>/dev/null | grep -c "CleanupOldDataJob\|SendSafeZoneExitReminders" || echo "0")
+    failed_jobs=$(echo "$failed_jobs" | tr -d '\n\r' | head -1)
     
     if [ "$failed_jobs" -gt 0 ]; then
         print_status "❌ $failed_jobs job(s) de schedule échoué(s) dans les dernières 24h" "$RED"
@@ -289,6 +308,8 @@ monitor_schedule_performance() {
         
         # Vérifier les erreurs récentes
         local recent_errors=$(grep -c "ERROR\|FAILED" "$SCHEDULE_LOG" 2>/dev/null || echo "0")
+        recent_errors=$(echo "$recent_errors" | tr -d '\n\r' | head -1)
+        
         if [ "$recent_errors" -gt 0 ]; then
             print_status "❌ $recent_errors erreur(s) détectée(s) dans les logs" "$RED"
         else
