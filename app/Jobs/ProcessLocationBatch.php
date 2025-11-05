@@ -61,12 +61,6 @@ class ProcessLocationBatch implements ShouldQueue
 
             // Traiter chaque position
             foreach ($locations as $location) {
-                Log::info('Processing location loop', [
-                    'location_id' => $location->id,
-                    'latitude' => $location->latitude,
-                    'longitude' => $location->longitude,
-                    'captured_at_device' => $location->captured_at_device,
-                ]);
                 $geoprocessingService->processLocation($location);
             }
 

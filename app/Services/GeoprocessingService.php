@@ -32,8 +32,14 @@ class GeoprocessingService
      */
     public function processLocation(UserLocation $location): void
     {
+        Log::info('Processing location', [
+            'user_id' => $location->user_id,
+            'location_id' => $location->id,
+            'lat' => $location->latitude,
+            'lng' => $location->longitude
+        ]);
         try {
-            Log::debug('Processing location', [
+            Log::debug('Processing location try & catch', [
                 'user_id' => $location->user_id,
                 'location_id' => $location->id,
                 'lat' => $location->latitude,
@@ -62,6 +68,13 @@ class GeoprocessingService
      */
     private function processDangerZones(UserLocation $location): void
     {
+        Log::info('Processing danger zones', [
+            'user_id' => $location->user_id,
+            'location_id' => $location->id,
+            'lat' => $location->latitude,
+            'lng' => $location->longitude
+        ]);
+
         // Récupérer les zones de danger actives dans un rayon de recherche
         $searchRadius = 1.0; // 1km de rayon de recherche
 
@@ -195,9 +208,9 @@ class GeoprocessingService
                     'safe_zone_id' => $zone->id,
                     'distance' => $distance
                 ]);
-                
+
                 $this->handleSafeZoneExit($location, $zone, $distance);
-                
+
             } else {
                 // Utilisateur dans la zone - aucune action
                 Log::debug('User inside safe zone - no action', [
@@ -383,9 +396,9 @@ class GeoprocessingService
                 $zone->center->latitude,
                 $zone->center->longitude
             );
-            
+
             $isInside = $distance <= $zone->radius_m;
-            
+
             Log::debug('Safe zone distance calculation', [
                 'zone_id' => $zone->id,
                 'user_lat' => $location->latitude,
@@ -396,7 +409,7 @@ class GeoprocessingService
                 'radius_m' => $zone->radius_m,
                 'is_inside' => $isInside
             ]);
-            
+
             return $isInside;
         } elseif ($zone->isPolygon()) {
             Log::debug('Safe zone is polygon', [
