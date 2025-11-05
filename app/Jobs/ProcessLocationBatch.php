@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * UC-G1/G2: Job de traitement géospatial des positions
- * 
+ *
  * Traite un batch de positions pour détecter les entrées/sorties
  * de zones de danger et zones de sécurité
  */
@@ -61,6 +61,12 @@ class ProcessLocationBatch implements ShouldQueue
 
             // Traiter chaque position
             foreach ($locations as $location) {
+                Log::info('Processing location loop', [
+                    'location_id' => $location->id,
+                    'latitude' => $location->latitude,
+                    'longitude' => $location->longitude,
+                    'captured_at_device' => $location->captured_at_device,
+                ]);
                 $geoprocessingService->processLocation($location);
             }
 
