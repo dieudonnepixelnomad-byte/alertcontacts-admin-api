@@ -83,7 +83,7 @@ class GeoprocessingService
             ->withinRadius($location->latitude, $location->longitude, $searchRadius)
             ->get();
 
-        Log::debug('Danger zones found', [
+        Log::info('Danger zones found', [
             'user_id' => $location->user_id,
             'location_id' => $location->id,
             'danger_zones_count' => $dangerZones->count()
@@ -100,7 +100,7 @@ class GeoprocessingService
                 $zone->center_lng
             );
 
-            Log::debug('Distance to danger zone', [
+            Log::info('Distance to danger zone', [
                 'user_id' => $location->user_id,
                 'location_id' => $location->id,
                 'danger_zone_id' => $zone->id,
@@ -118,7 +118,7 @@ class GeoprocessingService
 
         // Si des zones de danger sont détectées, en sélectionner une au hasard
         if (!empty($nearbyZones)) {
-            Log::debug('Nearby danger zones detected', [
+            Log::info('Nearby danger zones detected', [
                 'user_id' => $location->user_id,
                 'location_id' => $location->id,
                 'nearby_zones_count' => count($nearbyZones)
@@ -128,14 +128,14 @@ class GeoprocessingService
             $randomIndex = array_rand($nearbyZones);
             $selectedZone = $nearbyZones[$randomIndex];
 
-            Log::debug('Checking if notification should be sent for danger zone', [
+            Log::info('Checking if notification should be sent for danger zone', [
                 'user_id' => $location->user_id,
                 'location_id' => $location->id,
                 'danger_zone_name' => $selectedZone['zone']->title,
                 'distance' => $selectedZone['distance']
             ]);
 
-            Log::debug('Random zone selected for notification check', [
+            Log::info('Random zone selected for notification check', [
                 'user_id' => $location->user_id,
                 'location_id' => $location->id,
                 'selected_zone_id' => $selectedZone['zone']->id,
@@ -232,7 +232,7 @@ class GeoprocessingService
     {
         // Vérifier si l'utilisateur a ignoré cette zone de danger
         if ($this->ignoredDangerZoneService->isZoneIgnored($location->user_id, $zone->id)) {
-            Log::debug('Danger zone notification skipped - zone is ignored by user', [
+            Log::info('Danger zone notification skipped - zone is ignored by user', [
                 'user_id' => $location->user_id,
                 'zone_id' => $zone->id,
                 'zone_name' => $zone->name,
@@ -245,7 +245,7 @@ class GeoprocessingService
 
         // Vérifier le cooldown (pas plus d'une notification par 12h par zone/utilisateur)
         if ($this->cooldownService->isInCooldown($cooldownKey)) {
-            Log::debug('Danger zone notification skipped due to 12h cooldown', [
+            Log::info('Danger zone notification skipped due to 12h cooldown', [
                 'user_id' => $location->user_id,
                 'zone_id' => $zone->id,
                 'zone_name' => $zone->name,
@@ -283,7 +283,7 @@ class GeoprocessingService
             'severity' => $zone->severity
         ]);
 
-        Log::debug('Cooldown activated for danger zone', [
+        Log::info('Cooldown activated for danger zone', [
             'user_id' => $location->user_id,
             'zone_id' => $zone->id,
             'cooldown_key' => $cooldownKey,
