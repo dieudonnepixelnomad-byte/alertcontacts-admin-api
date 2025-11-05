@@ -109,6 +109,13 @@ class GeoprocessingService
 
             // Vérifier si l'utilisateur est proche de la zone de danger
             if ($distance <= $zone->radius_m) {
+                Log::info('User is within danger zone radius', [
+                    'user_id' => $location->user_id,
+                    'location_id' => $location->id,
+                    'danger_zone_id' => $zone->id,
+                    'distance' => $distance
+                ]);
+
                 $nearbyZones[] = [
                     'zone' => $zone,
                     'distance' => $distance
@@ -143,6 +150,11 @@ class GeoprocessingService
             ]);
 
             $this->handleDangerZoneEntry($location, $selectedZone['zone'], $selectedZone['distance']);
+        }else{
+            Log::info('No nearby danger zones detected', [
+                'user_id' => $location->user_id,
+                'location_id' => $location->id
+            ]);
         }
     }
 
