@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * UC-A1: API d'ingestion des positions GPS
- * 
+ *
  * Contrôleur responsable de recevoir les positions GPS du mobile
  * et de les traiter via une queue pour le géoprocessing
  */
@@ -22,9 +22,9 @@ class LocationController extends Controller
 {
     /**
      * UC-A1: Ingestion batch des positions GPS
-     * 
+     *
      * Reçoit un batch de positions du mobile et les traite de manière asynchrone
-     * 
+     *
      * @param LocationBatchRequest $request
      * @return JsonResponse
      */
@@ -33,7 +33,7 @@ class LocationController extends Controller
         try {
             $user = Auth::user();
             $locations = $request->validated()['locations'];
-            
+
             Log::info('Location batch received', [
                 'user_id' => $user->id,
                 'count' => count($locations),
@@ -56,9 +56,15 @@ class LocationController extends Controller
                     'foreground' => $locationData['foreground'] ?? false,
                     'battery_level' => $locationData['battery_level'] ?? null,
                 ]);
-                
+
                 $savedLocations[] = $location;
+
             }
+
+            Log::info('Locations saved', [
+                'user_id' => $user->id,
+                'location_ids' => collect($savedLocations)->pluck('id')->toArray()
+            ]);
 
             // Déclencher le traitement géospatial asynchrone
             ProcessLocationBatch::dispatch($user->id, collect($savedLocations)->pluck('id')->toArray())
@@ -88,7 +94,7 @@ class LocationController extends Controller
 
     /**
      * UC-A1: Récupération des dernières positions (pour debug/admin)
-     * 
+     *
      * @param Request $request
      * @return JsonResponse
      */
