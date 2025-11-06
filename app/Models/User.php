@@ -36,6 +36,8 @@ class User extends Authenticatable implements FilamentUser
         'timezone',
         'quiet_hours_enabled',
         'is_admin',
+        'onboarding_completed',
+        'onboarding_data',
     ];
 
     /**
@@ -60,6 +62,8 @@ class User extends Authenticatable implements FilamentUser
             'fcm_token_updated_at' => 'datetime',
             'password' => 'hashed',
             'quiet_hours_enabled' => 'boolean',
+            'onboarding_completed' => 'boolean',
+            'onboarding_data' => 'array',
         ];
     }
 

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\QuietHoursController;
 use App\Http\Controllers\Api\UserActivitiesController;
 use App\Http\Controllers\Api\TestNotificationController;
 use App\Http\Controllers\Api\FeedbackController;
+use App\Http\Controllers\Api\UserOnboardingController;
 
 // Routes d'authentification (publiques)
 Route::prefix('auth')->group(function () {
@@ -153,4 +154,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    // Onboarding utilisateur (enregistrement des données dans users)
+    Route::post('/user/onboarding', [UserOnboardingController::class, 'complete']);
 });
