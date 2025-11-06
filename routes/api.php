@@ -15,6 +15,11 @@ use App\Http\Controllers\Api\UserActivitiesController;
 use App\Http\Controllers\Api\TestNotificationController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\UserOnboardingController;
+use App\Http\Controllers\Api\AppStatusController;
+use App\Http\Controllers\Api\Admin\AppSettingsController as AdminAppSettingsController;
+
+// Route publique pour l'état de l'application
+Route::get('/app-status', AppStatusController::class);
 
 // Routes d'authentification (publiques)
 Route::prefix('auth')->group(function () {
@@ -157,4 +162,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Onboarding utilisateur (enregistrement des données dans users)
     Route::post('/user/onboarding', [UserOnboardingController::class, 'complete']);
+
+    // Routes d'administration
+    Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
+        Route::get('settings', [AdminAppSettingsController::class, 'index']);
+        Route::put('settings', [AdminAppSettingsController::class, 'update']);
+    });
 });

@@ -76,7 +76,7 @@ class PerformanceMetrics extends BaseWidget
     {
         // Activité en temps réel (dernières 24h)
         $recentActivity = UserActivity::where('created_at', '>=', now()->subDay())->count();
-        $recentEvents = SafeZoneEvent::where('captured_at', '>=', now()->subDay())->count();
+        $recentEvents = SafeZoneEvent::where('captured_at_device', '>=', now()->subDay())->count();
         
         // Nouvelles inscriptions aujourd'hui
         $todayUsers = User::whereDate('created_at', today())->count();
@@ -165,8 +165,8 @@ class PerformanceMetrics extends BaseWidget
 
     private function getEventsChart(): array
     {
-        return SafeZoneEvent::selectRaw('HOUR(captured_at) as hour, COUNT(*) as count')
-            ->where('captured_at', '>=', now()->subDay())
+        return SafeZoneEvent::selectRaw('HOUR(captured_at_device) as hour, COUNT(*) as count')
+            ->where('captured_at_device', '>=', now()->subDay())
             ->groupBy('hour')
             ->orderBy('hour')
             ->pluck('count')
