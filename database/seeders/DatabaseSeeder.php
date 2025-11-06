@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             AdminUserSeeder::class,
-            TestDataSeeder::class
+            AppSettingsSeeder::class
         ]);
     }
 }

@@ -134,16 +134,8 @@ class User extends Authenticatable implements FilamentUser
     // Can access Panel Filament Admin
     public function canAccessPanel(Panel $panel): bool
     {
-        // Permettre l'accès aux emails spécifiques (super admins)
-        if ($this->email === 'dieudonnegwet86@gmail.com' || $this->email === 'edwige.gnaly1@gmail.com') {
-            return true;
-        }
+        $allowedEmails = config('admin.emails');
 
-        // Permettre l'accès si l'utilisateur a un champ is_admin à true
-        if (isset($this->attributes['is_admin']) && $this->attributes['is_admin']) {
-            return true;
-        }
-
-        return false;
+        return $this->is_admin && in_array($this->email, $allowedEmails, true);
     }
 }
