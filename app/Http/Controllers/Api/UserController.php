@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Jobs\ExportUserDataJob;
 
 class UserController extends Controller
 {
@@ -131,5 +132,12 @@ class UserController extends Controller
             'message' => 'Profil mis à jour avec succès.',
             'user' => $user
         ]);
+    }
+
+    public function exportData(Request $request): JsonResponse
+    {
+        ExportUserDataJob::dispatch($request->user());
+
+        return response()->json(['message' => "Votre demande d'exportation a été prise en compte. Vous recevrez bientôt un e-mail avec vos données."]);
     }
 }
