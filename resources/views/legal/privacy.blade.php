@@ -230,12 +230,24 @@
         </div>
 
         <div class="card">
-            <h2>🌍 9. Stockage et transfert</h2>
+            <h2>🗑️ 9. Suppression de votre compte et de vos données</h2>
+            <p>Si vous souhaitez supprimer votre compte AlertContacts et toutes les données associées :</p>
+            <ol>
+                <li>Ouvrez l’application AlertContacts.</li>
+                <li>Rendez-vous dans <strong>Profil > Supprimer mon compte</strong>.</li>
+                <li>Confirmez la suppression : toutes vos données (positions, zones, alertes, historiques) seront supprimées de nos serveurs sous 30 jours.</li>
+            </ol>
+            <p>Si vous ne pouvez plus accéder à l’application, vous pouvez faire la demande par e-mail à : 📧 <a href="mailto:contact@alertcontacts.net">contact@alertcontacts.net</a></p>
+            <p>🔒 <strong>Après la suppression, vos données ne seront plus accessibles et ne pourront pas être restaurées.</strong></p>
+        </div>
+
+        <div class="card">
+            <h2>🌍 10. Stockage et transfert</h2>
             <p>Les données sont hébergées sur des serveurs de Hostinger. Aucun transfert en dehors de l’EEE sans garanties adéquates.</p>
         </div>
 
         <div class="card">
-            <h2>🧩 10. Cookies et technologies similaires</h2>
+            <h2>🧩 11. Cookies et technologies similaires</h2>
             <p>AlertContacts n’utilise aucun cookie publicitaire. Seuls des cookies ou traceurs techniques sont utilisés pour :</p>
             <ul>
                 <li>Maintenir votre session</li>
@@ -245,12 +257,12 @@
         </div>
 
         <div class="card">
-            <h2>🧾 11. Modifications de la politique</h2>
+            <h2>🧾 12. Modifications de la politique</h2>
             <p>Nous pouvons mettre à jour cette politique en cas d’évolution légale ou technique. Vous serez notifié via l’application ou par e-mail avant toute modification majeure.</p>
         </div>
 
         <div class="card">
-            <h2>💬 12. Contact</h2>
+            <h2>💬 13. Contact</h2>
             <p>Pour toute question concernant cette politique ou vos données personnelles :</p>
             <p>📧 <a href="mailto:contact@alertcontacts.net">contact@alertcontacts.net</a></p>
             <p>🌐 <a href="https://www.alertcontacts.net" target="_blank" rel="noopener">www.alertcontacts.net</a></p>
