@@ -41,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Profil utilisateur
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/user/profile', [UserController::class, 'updateProfile']);
 
     // Toutes les zones de l'utilisateur
     Route::get('/my-zones', [AuthController::class, 'getMyZones']);
