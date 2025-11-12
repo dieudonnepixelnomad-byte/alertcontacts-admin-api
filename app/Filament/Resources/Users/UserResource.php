@@ -59,25 +59,9 @@ class UserResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListUsers::route('/'),
-            'create' => CreateUser::route('/create'),
-            'view' => ViewUser::route('/{record}'),
-            'edit' => EditUser::route('/{record}/edit'),
+            'index' => Pages\ListUsers::route('/'),
+            'create' => Pages\CreateUser::route('/create'),
+            'edit' => Pages\EditUser::route('/{record}/edit'),
         ];
-    }
-
-    public static function getGlobalSearchEloquentQuery(): \Illuminate\Database\Eloquent\Builder
-    {
-        return parent::getGlobalSearchEloquentQuery()->with(['myContacts']);
-    }
-
-    public static function getGloballySearchableAttributes(): array
-    {
-        return ['name', 'email', 'phone_number'];
-    }
-
-    public static function getNavigationBadge(): ?string
-    {
-        return static::getModel()::count();
     }
 }
