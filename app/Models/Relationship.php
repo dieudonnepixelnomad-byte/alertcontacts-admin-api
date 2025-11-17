@@ -12,6 +12,13 @@ class Relationship extends Model
 
     protected $table = 'relationships';
 
+    /**
+     * The relationships that should always be loaded.
+     *
+     * @var array
+     */
+    protected $with = ['contact'];
+
     protected $fillable = [
         'user_id',
         'contact_id',

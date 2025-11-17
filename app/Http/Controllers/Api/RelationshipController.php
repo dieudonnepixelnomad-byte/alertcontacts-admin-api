@@ -93,16 +93,27 @@ class RelationshipController extends Controller
             // Logique de notification à implémenter
         }
 
+        // Recharger la relation avec le contact pour inclure toutes les informations
+        $relationship->load('contact');
+
         return response()->json([
             'success' => true,
             'message' => 'Paramètres de partage mis à jour',
             'data' => [
                 'relationship' => [
                     'id' => $relationship->id,
+                    'user_id' => $relationship->user_id,
+                    'contact_id' => $relationship->contact_id,
+                    'status' => $relationship->status,
                     'share_level' => $relationship->share_level,
                     'can_see_me' => $relationship->can_see_me,
-                ]
-            ]
+                    'accepted_at' => $relationship->accepted_at?->toISOString(),
+                    'refused_at' => $relationship->refused_at?->toISOString(),
+                    'created_at' => $relationship->created_at?->toISOString(),
+                    'updated_at' => $relationship->updated_at?->toISOString(),
+                    'contact' => $relationship->contact,
+                ],
+            ],
         ]);
     }
 
