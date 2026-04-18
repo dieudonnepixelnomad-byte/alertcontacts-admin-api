@@ -8,6 +8,8 @@ use App\Models\Feedback;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class FeedbackController extends Controller
 {
@@ -22,7 +24,7 @@ class FeedbackController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
-        
+
         $feedbacks = Feedback::where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->paginate(10);
@@ -33,38 +35,45 @@ class FeedbackController extends Controller
         ]);
     }
 
-    /**
+        /**
      * Store a newly created feedback in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreFeedbackRequest $request): JsonResponse
+    public function store(Request $request)
     {
+        $validator = Validator::make($request->all(), [
+            'category' => 'required|string|in:feature,bug,compliment,complaint,other',
+            'subject' => 'required|string|max:255',
+            'message' => 'required|string|min:20',
+            'app_version' => 'nullable|string|max:50',
+            'os_version' => 'nullable|string|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = Auth::user();
+
         try {
-            $user = Auth::user();
-            $validated = $request->validated();
-            
-            $feedback = Feedback::create([
+            Feedback::create([
                 'user_id' => $user->id,
-                'type' => $validated['type'],
-                'subject' => $validated['subject'] ?? null,
-                'message' => $validated['message'],
-                'rating' => $validated['rating'] ?? null,
-                'app_version' => $validated['app_version'] ?? null,
-                'device_info' => $validated['device_info'] ?? null,
-                'status' => 'pending',
+                'category' => $request->input('category'),
+                'subject' => $request->input('subject'),
+                'message' => $request->input('message'),
+                'app_version' => $request->input('app_version'),
+                'os_version' => $request->input('os_version'),
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Votre feedback a été envoyé avec succès. Merci pour votre retour !',
-                'data' => $feedback,
-            ], 201);
+            return response()->json(['message' => 'Feedback submitted successfully.'], 201);
 
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Une erreur est survenue lors de l\'envoi de votre feedback.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+            // Log the error for debugging
+            Log::error('Feedback submission failed: ' . $e->getMessage());
+
+            return response()->json(['message' => 'An error occurred while submitting feedback.'], 500);
         }
     }
 
@@ -74,7 +83,7 @@ class FeedbackController extends Controller
     public function show(string $id): JsonResponse
     {
         $user = Auth::user();
-        
+
         $feedback = Feedback::where('user_id', $user->id)
             ->where('id', $id)
             ->first();
@@ -109,7 +118,7 @@ class FeedbackController extends Controller
     public function stats(): JsonResponse
     {
         $user = Auth::user();
-        
+
         $stats = [
             'total' => Feedback::where('user_id', $user->id)->count(),
             'pending' => Feedback::where('user_id', $user->id)->where('status', 'pending')->count(),
