@@ -59,14 +59,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/safe-zones/{safeZone}/notification-settings', [SafeZonesController::class, 'updateNotificationSettings']);
 
     // Routes pour les zones de danger
+    // IMPORTANT : les routes statiques DOIVENT précéder /{dangerZone} pour éviter les conflits
     Route::get('/danger-zones', [DangerZonesController::class, 'index']);
     Route::post('/danger-zones', [DangerZonesController::class, 'store']);
+    Route::get('/danger-zones/viewport', [DangerZonesController::class, 'viewport']);
+    Route::post('/danger-zones/check-duplicates', [DangerZonesController::class, 'checkForDuplicates']);
     Route::get('/danger-zones/{dangerZone}', [DangerZonesController::class, 'show']);
     Route::put('/danger-zones/{dangerZone}', [DangerZonesController::class, 'update']);
     Route::delete('/danger-zones/{dangerZone}', [DangerZonesController::class, 'destroy']);
     Route::post('/danger-zones/{dangerZone}/confirm', [DangerZonesController::class, 'confirm']);
     Route::post('/danger-zones/{dangerZone}/report-abuse', [DangerZonesController::class, 'reportAbuse']);
-    Route::post('/danger-zones/check-duplicates', [DangerZonesController::class, 'checkForDuplicates']);
 
     // Routes pour les zones de danger ignorées
     Route::prefix('ignored-danger-zones')->group(function () {

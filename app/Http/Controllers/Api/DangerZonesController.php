@@ -800,6 +800,98 @@ class DangerZonesController extends Controller
     }
 
     /**
+     * Récupérer les zones de danger dans un viewport (bbox) avec LOD selon le zoom.
+     * GET /api/danger-zones/viewport?south=&north=&west=&east=&zoom=
+     */
+    public function viewport(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'south' => 'required|numeric|between:-90,90',
+                'north' => 'required|numeric|between:-90,90',
+                'west'  => 'required|numeric|between:-180,180',
+                'east'  => 'required|numeric|between:-180,180',
+                'zoom'  => 'required|integer|min:1|max:22',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => [
+                        'code'    => 'VALIDATION_ERROR',
+                        'message' => 'Paramètres de viewport invalides.',
+                        'details' => $validator->errors(),
+                    ],
+                ], 422);
+            }
+
+            $zoom  = (int) $request->zoom;
+            $south = (float) $request->south;
+            $north = (float) $request->north;
+            $west  = (float) $request->west;
+            $east  = (float) $request->east;
+
+            [$limit, $severities] = $this->viewportLodParams($zoom);
+
+            $query = DangerZone::where('is_active', true)
+                ->where('last_report_at', '>=', now()->subDays(30))
+                ->whereBetween('center_lat', [$south, $north])
+                ->whereBetween('center_lng', [$west, $east]);
+
+            if ($severities !== null) {
+                $query->whereIn('severity', $severities);
+            }
+
+            $zones = $query
+                ->select('id', 'title', 'center_lat', 'center_lng', 'radius_m', 'severity', 'danger_type', 'confirmations', 'last_report_at')
+                ->orderByDesc('confirmations')
+                ->limit($limit)
+                ->get()
+                ->map(fn($z) => [
+                    'id'            => $z->id,
+                    'title'         => $z->title,
+                    'center'        => ['lat' => (float) $z->center_lat, 'lng' => (float) $z->center_lng],
+                    'radius_meters' => $z->radius_m,
+                    'severity'      => $z->severity,
+                    'danger_type'   => $z->danger_type,
+                    'confirmations' => $z->confirmations,
+                    'last_report_at' => $z->last_report_at->toISOString(),
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $zones,
+                'meta'    => ['zoom' => $zoom, 'count' => $zones->count(), 'limit' => $limit],
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code'    => 'VIEWPORT_FETCH_ERROR',
+                    'message' => 'Erreur lors de la récupération des zones en viewport.',
+                    'details' => config('app.debug') ? $e->getMessage() : null,
+                ],
+            ], 500);
+        }
+    }
+
+    /**
+     * Retourne [limit, severities] selon le niveau de zoom (Level Of Detail).
+     * zoom < 10  → dangers HIGH uniquement, 200 max
+     * zoom < 13  → dangers MED+HIGH, 500 max
+     * zoom ≥ 13  → tout, 1000 max
+     */
+    private function viewportLodParams(int $zoom): array
+    {
+        return match (true) {
+            $zoom < 10  => [200,  ['high']],
+            $zoom < 13  => [500,  ['med', 'high']],
+            default     => [1000, null],
+        };
+    }
+
+    /**
      * Vérifier les doublons de zones de danger
      */
     public function checkForDuplicates(Request $request): JsonResponse

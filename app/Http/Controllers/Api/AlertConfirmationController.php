@@ -27,7 +27,7 @@ class AlertConfirmationController extends Controller
             // Récupérer l'alerte en attente
             $pendingAlert = PendingSafeZoneAlert::with(['safeZone', 'user'])
                 ->where('id', $alertId)
-                ->where('is_confirmed', false)
+                ->where('confirmed', false)
                 ->first();
 
             if (!$pendingAlert) {
@@ -93,7 +93,7 @@ class AlertConfirmationController extends Controller
                 ->whereHas('safeZone', function ($query) use ($user) {
                     $query->where('user_id', $user->id);
                 })
-                ->where('is_confirmed', false)
+                ->where('confirmed', false)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -108,8 +108,8 @@ class AlertConfirmationController extends Controller
                         'id' => $alert->user->id,
                         'name' => $alert->user->name,
                     ],
-                    'first_sent_at' => $alert->first_sent_at,
-                    'last_reminder_at' => $alert->last_reminder_at,
+                    'first_sent_at' => $alert->first_alert_sent_at,
+                    'last_reminder_at' => $alert->last_reminder_sent_at,
                     'reminder_count' => $alert->reminder_count,
                     'created_at' => $alert->created_at,
                 ];

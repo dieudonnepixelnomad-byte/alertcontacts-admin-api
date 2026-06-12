@@ -11,10 +11,11 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Planification des tâches
-// Schedule::command('safezone:send-reminders')
-//     ->everyFiveMinutes()
-//     ->withoutOverlapping()
-//     ->appendOutputTo(storage_path('logs/safezone-reminders.log'));
+Schedule::command('safezone:send-reminders')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(10)
+    ->appendOutputTo(storage_path('logs/safezone-reminders.log'))
+    ->description('Envoi des rappels périodiques de sortie de zone de sécurité');
 
 /**
  * 🧹 NETTOYAGE AUTOMATIQUE DES DONNÉES ANCIENNES

@@ -202,7 +202,6 @@ class GeoprocessingService
             $isInside = $this->isUserInSafeZone($location, $zone);
             $distance = null;
 
-            // Calculer la distance si c'est une zone circulaire
             if ($zone->isCircle()) {
                 $distance = $this->calculateDistance(
                     $location->latitude,
@@ -212,25 +211,38 @@ class GeoprocessingService
                 );
             }
 
-            if (!$isInside) {
-                // Utilisateur hors de la zone - Envoyer notification systématiquement
-                Log::info('User outside safe zone - sending notification', [
-                    'user_id' => $location->user_id,
-                    'location_id' => $location->id,
-                    'safe_zone_id' => $zone->id,
-                    'distance' => $distance
-                ]);
+            // Machine à états : ne déclencher que sur une transition réelle inside↔outside
+            $lastEvent = SafeZoneEvent::where('user_id', $location->user_id)
+                ->where('safe_zone_id', $zone->id)
+                ->latest('captured_at_device')
+                ->first();
 
-                $this->handleSafeZoneExit($location, $zone, $distance);
+            // Pas d'événement précédent → on suppose que l'utilisateur était dedans (évite le faux exit au 1er point)
+            $wasInside = $lastEvent ? ($lastEvent->event_type === 'entry') : true;
 
-            } else {
-                // Utilisateur dans la zone - aucune action
-                Log::debug('User inside safe zone - no action', [
+            if (!$isInside && $wasInside) {
+                // Transition dedans → dehors = SORTIE
+                Log::info('Safe zone transition: entry → exit', [
                     'user_id' => $location->user_id,
-                    'location_id' => $location->id,
                     'safe_zone_id' => $zone->id,
                     'distance' => $distance,
-                    'reason' => 'User inside zone'
+                ]);
+                $this->handleSafeZoneExit($location, $zone, $distance);
+
+            } elseif ($isInside && !$wasInside) {
+                // Transition dehors → dedans = ENTRÉE
+                Log::info('Safe zone transition: exit → entry', [
+                    'user_id' => $location->user_id,
+                    'safe_zone_id' => $zone->id,
+                    'distance' => $distance,
+                ]);
+                $this->handleSafeZoneEntry($location, $zone, $distance);
+
+            } else {
+                Log::debug('Safe zone state unchanged - no action', [
+                    'user_id' => $location->user_id,
+                    'safe_zone_id' => $zone->id,
+                    'is_inside' => $isInside,
                 ]);
             }
         }
@@ -361,6 +373,49 @@ class GeoprocessingService
 
 
     /**
+     * UC-G2: Gérer l'entrée dans une zone de sécurité
+     */
+    private function handleSafeZoneEntry(UserLocation $location, SafeZone $zone, ?float $distance): void
+    {
+        Log::info('User entered safe zone', [
+            'user_id' => $location->user_id,
+            'zone_id'  => $zone->id,
+            'zone_name' => $zone->name,
+            'distance' => $distance,
+        ]);
+
+        // Enregistrer l'événement d'entrée
+        $this->recordSafeZoneEvent($location, $zone, 'entry', $distance);
+
+        // Auto-confirmer l'alerte en attente si l'utilisateur revient dans la zone
+        \App\Models\PendingSafeZoneAlert::where('user_id', $location->user_id)
+            ->where('safe_zone_id', $zone->id)
+            ->where('confirmed', false)
+            ->update([
+                'confirmed'    => true,
+                'confirmed_at' => now(),
+            ]);
+
+        // Enregistrer l'activité
+        $this->activityLogService->logEnterSafeZone($location->user_id, $zone->id, [
+            'distance'  => $distance,
+            'zone_name' => $zone->name,
+            'latitude'  => $location->latitude,
+            'longitude' => $location->longitude,
+        ]);
+
+        // Notifier le créateur de la zone si les notifications d'entrée sont activées
+        $assignment = $zone->assignments()
+            ->where('assigned_user_id', $location->user_id)
+            ->where('is_active', true)
+            ->first();
+
+        if ($assignment && $assignment->notify_enter) {
+            $this->notificationService->sendSafeZoneEntryAlert($location->user_id, $zone);
+        }
+    }
+
+    /**
      * Calculer la distance entre deux points GPS (en mètres)
      */
     private function calculateDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
@@ -450,7 +505,7 @@ class GeoprocessingService
                 'location' => new \MatanYadaev\EloquentSpatial\Objects\Point($location->latitude, $location->longitude),
                 'accuracy' => $location->accuracy,
                 'distance_m' => $distance,
-                'speed' => $location->speed,
+                'speed_kmh' => $location->speed,
                 'heading' => $location->heading,
                 'battery_level' => $location->battery_level,
                 'source' => $location->source,

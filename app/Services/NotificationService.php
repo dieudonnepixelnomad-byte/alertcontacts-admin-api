@@ -185,6 +185,67 @@ class NotificationService
 
 
     /**
+     * UC-N5: Envoyer une notification d'entrée dans une zone de sécurité au créateur de la zone
+     */
+    public function sendSafeZoneEntryAlert(int $userId, SafeZone $zone): bool
+    {
+        try {
+            $user = User::find($userId);
+            if (!$user) {
+                Log::warning('Cannot send safe zone entry alert - user not found', [
+                    'user_id' => $userId,
+                    'zone_id' => $zone->id,
+                ]);
+                return false;
+            }
+
+            $zoneOwner = $zone->owner;
+            if (!$zoneOwner) {
+                Log::warning('Cannot send safe zone entry alert - zone owner not found', [
+                    'user_id' => $userId,
+                    'zone_id' => $zone->id,
+                ]);
+                return false;
+            }
+
+            // Ne pas notifier si l'utilisateur qui entre est le créateur de la zone
+            if ($userId === $zoneOwner->id) {
+                return true;
+            }
+
+            if ($this->quietHoursService->isQuietTime($zoneOwner)) {
+                Log::info('Safe zone entry alert skipped - quiet hours', [
+                    'zone_owner_id' => $zoneOwner->id,
+                    'user_id'       => $userId,
+                    'zone_id'       => $zone->id,
+                ]);
+                return false;
+            }
+
+            $success = $this->firebaseService->sendSafeZoneEntry($zoneOwner, $zone, $user);
+
+            if ($success) {
+                Log::info('Safe zone entry alert sent to zone owner', [
+                    'user_id'        => $userId,
+                    'zone_id'        => $zone->id,
+                    'zone_name'      => $zone->name,
+                    'zone_owner_id'  => $zoneOwner->id,
+                ]);
+            }
+
+            return $success;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send safe zone entry alert', [
+                'user_id' => $userId,
+                'zone_id' => $zone->id,
+                'error'   => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * UC-N6: Envoyer des notifications de sortie de zone de sécurité au créateur de la zone
      */
     public function sendSafeZoneExitAlert(int $userId, SafeZone $zone): bool
