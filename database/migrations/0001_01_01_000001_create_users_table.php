@@ -43,7 +43,6 @@ return new class extends Migration
             $table->timestamps();
             
             // Index
-            $table->index('fcm_token');
             $table->index('firebase_uid');
             $table->index('provider');
         });

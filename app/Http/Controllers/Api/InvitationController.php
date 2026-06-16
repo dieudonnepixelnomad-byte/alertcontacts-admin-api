@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendInvitationNotificationJob;
 use App\Models\Invitation;
 use App\Models\Relationship;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -21,10 +23,11 @@ class InvitationController extends Controller
         $validator = Validator::make($request->all(), [
             'default_share_level' => 'required|in:realtime,alert_only,none',
             'suggested_zones' => 'nullable|array',
-            'expires_in_hours' => 'nullable|integer|min:1|max:168', // Max 1 semaine
+            'expires_in_hours' => 'nullable|integer|min:1|max:168',
             'max_uses' => 'nullable|integer|min:1|max:10',
             'require_pin' => 'nullable|boolean',
             'message' => 'nullable|string|max:500',
+            'invitee_email' => 'nullable|email',
         ]);
 
         if ($validator->fails()) {
@@ -48,6 +51,15 @@ class InvitationController extends Controller
                 'inviter_name' => $user->name,
                 'message' => $request->input('message'),
             ]);
+
+            // Notifier le destinataire s'il a déjà un compte
+            if ($request->filled('invitee_email')) {
+                $invitee = User::where('email', $request->input('invitee_email'))->first();
+                if ($invitee && $invitee->fcm_token) {
+                    SendInvitationNotificationJob::dispatch($invitee, $user)
+                        ->onQueue('invitations');
+                }
+            }
 
             return response()->json([
                 'success' => true,

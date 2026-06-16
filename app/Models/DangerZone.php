@@ -22,15 +22,18 @@ class DangerZone extends Model
         'last_report_at',
         'reported_by',
         'is_active',
+        'visibility',
+        'is_anonymous',
     ];
 
     protected $casts = [
-        'center_lat' => 'float',
-        'center_lng' => 'float',
-        'radius_m' => 'float',
-        'confirmations' => 'integer',
+        'center_lat'     => 'float',
+        'center_lng'     => 'float',
+        'radius_m'       => 'float',
+        'confirmations'  => 'integer',
         'last_report_at' => 'datetime',
-        'is_active' => 'boolean',
+        'is_active'      => 'boolean',
+        'is_anonymous'   => 'boolean',
     ];
 
     /**

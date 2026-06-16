@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\User;
 use App\Models\UserLocation;
+use App\Services\FirebaseRtdbService;
 use App\Services\GeoprocessingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -37,7 +39,7 @@ class ProcessLocationBatch implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(GeoprocessingService $geoprocessingService): void
+    public function handle(GeoprocessingService $geoprocessingService, FirebaseRtdbService $firebaseRtdbService): void
     {
         try {
             Log::info('Processing location batch', [
@@ -62,6 +64,25 @@ class ProcessLocationBatch implements ShouldQueue
             // Traiter chaque position
             foreach ($locations as $location) {
                 $geoprocessingService->processLocation($location);
+            }
+
+            // Publier la dernière position dans Firebase Realtime DB
+            $lastLocation = $locations->last();
+            $user = User::find($this->userId);
+            if ($user && $user->firebase_uid) {
+                $updatedAtMs = (int) (
+                    $lastLocation->captured_at_device instanceof \Carbon\Carbon
+                        ? $lastLocation->captured_at_device->timestamp * 1000
+                        : strtotime($lastLocation->captured_at_device) * 1000
+                );
+                $firebaseRtdbService->publishLocation(
+                    $user->firebase_uid,
+                    (float) $lastLocation->latitude,
+                    (float) $lastLocation->longitude,
+                    (float) $lastLocation->accuracy,
+                    isset($lastLocation->heading) ? (float) $lastLocation->heading : null,
+                    $updatedAtMs
+                );
             }
 
             Log::info('Location batch processed successfully', [

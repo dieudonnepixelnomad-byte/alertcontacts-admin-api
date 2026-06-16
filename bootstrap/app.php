@@ -14,7 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'tier' => \App\Http\Middleware\CheckSubscriptionTier::class,
+        ]);
     })
     ->withSchedule(function (Schedule $schedule): void {
         // Envoyer les rappels de sortie de zone de sécurité toutes les 5 minutes

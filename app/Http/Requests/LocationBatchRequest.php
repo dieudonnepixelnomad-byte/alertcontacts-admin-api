@@ -30,7 +30,7 @@ class LocationBatchRequest extends FormRequest
             'locations.*.speed' => 'nullable|numeric|min:0|max:200', // Vitesse en m/s (max ~720 km/h)
             'locations.*.heading' => 'nullable|numeric|min:0|max:360', // Direction en degrés
             'locations.*.captured_at_device' => 'required|date_format:Y-m-d\TH:i:s.v\Z', // ISO 8601 avec millisecondes
-            'locations.*.source' => 'nullable|string|in:gps,network,passive,fused',
+            'locations.*.source' => 'nullable|string|in:gps,network,passive,fused,geolocator',
             'locations.*.foreground' => 'nullable|boolean',
             'locations.*.battery_level' => 'nullable|integer|min:0|max:100', // Pourcentage batterie
         ];

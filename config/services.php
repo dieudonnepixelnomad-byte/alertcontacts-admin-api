@@ -41,4 +41,8 @@ return [
         'database_url' => env('FIREBASE_DATABASE_URL'),
     ],
 
+    'revenuecat' => [
+        'webhook_secret' => env('REVENUECAT_WEBHOOK_SECRET'),
+    ],
+
 ];

@@ -16,10 +16,17 @@ use App\Http\Controllers\Api\TestNotificationController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\UserOnboardingController;
 use App\Http\Controllers\Api\AppStatusController;
+use App\Http\Controllers\Api\ZoneController;
+use App\Http\Controllers\Api\AlertController;
+use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\RevenueCatWebhookController;
 use App\Http\Controllers\Api\Admin\AppSettingsController as AdminAppSettingsController;
 
 // Route publique pour l'état de l'application
 Route::get('/app-status', AppStatusController::class);
+
+// Webhook RevenueCat — public, pas de Sanctum (appelé par RevenueCat serveurs)
+Route::post('/webhooks/revenuecat', [RevenueCatWebhookController::class, 'handle']);
 
 // Routes d'authentification (publiques)
 Route::prefix('auth')->group(function () {
@@ -54,7 +61,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/safe-zones/{safeZone}', [SafeZonesController::class, 'destroy']);
     // Assignations
     Route::get('/safe-zones/my-assignments', [SafeZonesController::class, 'getMyAssignments']);
-    Route::post('/safe-zones/{safeZone}/assign', [SafeZonesController::class, 'assignContacts']);
+    Route::get('/safe-zones/{safeZone}/contacts', [SafeZonesController::class, 'getContacts']);
+    Route::put('/safe-zones/{safeZone}/contacts', [SafeZonesController::class, 'syncContacts']);
     // Paramètres de notification
     Route::put('/safe-zones/{safeZone}/notification-settings', [SafeZonesController::class, 'updateNotificationSettings']);
 
@@ -98,6 +106,32 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{relationship}', [RelationshipController::class, 'destroy']);
         Route::get('/contact/{contactId}/locations', [RelationshipController::class, 'getContactLocations']);
     });
+
+    // V4 — Contacts permissions
+    Route::put('/contacts/{relationship}/permissions', [RelationshipController::class, 'updatePermissions']);
+
+    // V4 — Zones
+    Route::apiResource('zones', ZoneController::class);
+    Route::get('/zones/{zone}/status', [ZoneController::class, 'status']);
+
+    // V4 — Abonnements
+    Route::get('/subscriptions', [SubscriptionController::class, 'index']);
+    Route::post('/subscriptions', [SubscriptionController::class, 'store']);
+    Route::middleware('tier:famille')->group(function () {
+        Route::post('/subscriptions/family/invite', [SubscriptionController::class, 'familyInvite']);
+        Route::delete('/subscriptions/family/{member}', [SubscriptionController::class, 'familyRemove']);
+    });
+
+    // V4 — Mode invisible
+    Route::post('/location/pause', [LocationController::class, 'pause']);
+    Route::post('/location/resume', [LocationController::class, 'resume']);
+
+    // V4 — Alertes communautaires
+    Route::get('/alerts/nearby', [AlertController::class, 'nearby']);
+    Route::post('/alerts/{alert}/confirm', [AlertController::class, 'confirm']);
+    Route::post('/alerts/{alert}/deny', [AlertController::class, 'deny']);
+    Route::post('/alerts/{alert}/report', [AlertController::class, 'report']);
+    Route::post('/alerts', [AlertController::class, 'store']); // tier:solo,famille via Flutter gate pour l'instant
 
     // Gestion des zones assignées aux proches
     Route::prefix('proches')->group(function () {
@@ -166,6 +200,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Onboarding utilisateur (enregistrement des données dans users)
     Route::post('/user/onboarding', [UserOnboardingController::class, 'complete']);
+    Route::post('/auth/onboarding/complete', [UserOnboardingController::class, 'complete']); // V4 alias
 
     // Routes d'administration
     Route::prefix('admin')->middleware('auth:sanctum')->group(function () {

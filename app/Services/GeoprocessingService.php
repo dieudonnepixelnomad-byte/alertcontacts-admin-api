@@ -410,7 +410,7 @@ class GeoprocessingService
             ->where('is_active', true)
             ->first();
 
-        if ($assignment && $assignment->notify_enter) {
+        if ($assignment && $assignment->notify_entry) {
             $this->notificationService->sendSafeZoneEntryAlert($location->user_id, $zone);
         }
     }

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSafeZoneRequest;
+use App\Jobs\SendZoneAssignmentNotificationJob;
 use App\Models\SafeZone;
 use App\Models\SafeZoneAssignment;
 use App\Models\Relationship;
+use App\Models\User;
 use App\Services\ActivityLogService;
 use MatanYadaev\EloquentSpatial\Objects\Point;
 use MatanYadaev\EloquentSpatial\Objects\Polygon;
@@ -288,6 +290,128 @@ class SafeZonesController extends Controller
                     'message' => 'Erreur lors de la création de la zone de sécurité.',
                     'details' => config('app.debug') ? $e->getMessage() : null
                 ]
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/safe-zones/{safeZone}/contacts
+     * Retourne les contacts actuellement assignés à la zone
+     */
+    public function getContacts(SafeZone $safeZone): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+
+            if ($safeZone->owner_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Non autorisé.']
+                ], 403);
+            }
+
+            $contactIds = SafeZoneAssignment::where('safe_zone_id', $safeZone->id)
+                ->where('is_active', true)
+                ->pluck('assigned_user_id')
+                ->map(fn($id) => (string) $id)
+                ->values();
+
+            return response()->json(['success' => true, 'data' => ['contact_ids' => $contactIds]]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'FETCH_ERROR', 'message' => $e->getMessage()]
+            ], 500);
+        }
+    }
+
+    /**
+     * PUT /api/safe-zones/{safeZone}/contacts
+     * Synchronise la liste complète des contacts assignés à la zone.
+     * Les contacts retirés sont désactivés (is_active=false), pas supprimés.
+     */
+    public function syncContacts(SafeZone $safeZone): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+
+            if ($safeZone->owner_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Non autorisé.']
+                ], 403);
+            }
+
+            $validated = request()->validate([
+                'contact_ids' => 'required|array',
+                'contact_ids.*' => 'integer',
+            ]);
+
+            $newIds = collect($validated['contact_ids']);
+
+            // Vérifier que chaque ID correspond à une relation acceptée
+            $validIds = $newIds->filter(function ($contactId) use ($user) {
+                return Relationship::between($user->id, $contactId)->accepted()->exists();
+            });
+
+            // IDs déjà actifs avant la sync (pour détecter les nouveaux)
+            $previousActiveIds = SafeZoneAssignment::where('safe_zone_id', $safeZone->id)
+                ->where('is_active', true)
+                ->pluck('assigned_user_id')
+                ->toArray();
+
+            DB::beginTransaction();
+
+            // Désactiver les assignations retirées
+            SafeZoneAssignment::where('safe_zone_id', $safeZone->id)
+                ->whereNotIn('assigned_user_id', $validIds)
+                ->update(['is_active' => false]);
+
+            // Créer ou réactiver les nouvelles assignations
+            $newlyAssignedIds = [];
+            foreach ($validIds as $contactId) {
+                SafeZoneAssignment::updateOrCreate(
+                    ['safe_zone_id' => $safeZone->id, 'assigned_user_id' => $contactId],
+                    [
+                        'assigned_by_user_id' => $user->id,
+                        'is_active' => true,
+                        'notify_entry' => true,
+                        'notify_exit' => true,
+                        'assigned_at' => now(),
+                    ]
+                );
+
+                if (!in_array($contactId, $previousActiveIds)) {
+                    $newlyAssignedIds[] = $contactId;
+                }
+            }
+
+            DB::commit();
+
+            // Notifier les nouveaux proches via Queue (jamais synchrone)
+            foreach ($newlyAssignedIds as $contactId) {
+                $assignedUser = User::find($contactId);
+                if ($assignedUser) {
+                    SendZoneAssignmentNotificationJob::dispatch($assignedUser, $user, $safeZone);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'contact_ids' => $validIds->map(fn($id) => (string) $id)->values(),
+                ]
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'VALIDATION_ERROR', 'details' => $e->errors()]
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'SYNC_ERROR', 'message' => $e->getMessage()]
             ], 500);
         }
     }

@@ -38,6 +38,9 @@ class User extends Authenticatable implements FilamentUser
         'is_admin',
         'onboarding_completed',
         'onboarding_data',
+        'tier',
+        'location_paused',
+        'invisible_until',
     ];
 
     /**
@@ -60,8 +63,10 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'fcm_token_updated_at' => 'datetime',
+            'invisible_until' => 'datetime',
             'password' => 'hashed',
             'quiet_hours_enabled' => 'boolean',
+            'location_paused' => 'boolean',
             'onboarding_completed' => 'boolean',
             'onboarding_data' => 'array',
         ];

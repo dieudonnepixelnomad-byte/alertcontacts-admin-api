@@ -52,7 +52,9 @@ class LocationController extends Controller
                     'speed' => $locationData['speed'] ?? null,
                     'heading' => $locationData['heading'] ?? null,
                     'captured_at_device' => $locationData['captured_at_device'],
-                    'source' => $locationData['source'] ?? 'gps',
+                    'source' => in_array($locationData['source'] ?? '', ['gps', 'network', 'passive', 'fused'])
+                        ? $locationData['source']
+                        : 'gps',
                     'foreground' => $locationData['foreground'] ?? false,
                     'battery_level' => $locationData['battery_level'] ?? null,
                 ]);
@@ -90,6 +92,42 @@ class LocationController extends Controller
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
+    }
+
+    /**
+     * V4 — Activer le mode invisible (pause de la position)
+     */
+    public function pause(Request $request): JsonResponse
+    {
+        $request->validate(['duration' => 'nullable|integer|min:0|max:1440']);
+
+        $user = Auth::user();
+        $duration = $request->input('duration', 60);
+
+        $until = $duration > 0 ? now()->addMinutes($duration) : null;
+
+        $user->update([
+            'location_paused' => true,
+            'invisible_until' => $until,
+        ]);
+
+        return response()->json([
+            'status' => 'ok',
+            'invisible_until' => $until?->toISOString(),
+        ]);
+    }
+
+    /**
+     * V4 — Désactiver le mode invisible (reprise de la position)
+     */
+    public function resume(): JsonResponse
+    {
+        Auth::user()->update([
+            'location_paused' => false,
+            'invisible_until' => null,
+        ]);
+
+        return response()->json(['status' => 'ok']);
     }
 
     /**

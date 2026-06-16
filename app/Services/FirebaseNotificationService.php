@@ -75,8 +75,8 @@ class FirebaseNotificationService
             return false;
         }
 
-        $title = "✅ Retour en zone de sécurité";
-        $body  = "{$assignedUser->name} est entré(e) dans la zone '{$safeZone->name}'";
+        $title = "✅ {$assignedUser->name} est arrivé(e)";
+        $body  = "{$safeZone->name} — à l'instant";
 
         $data = [
             'type'               => 'safe_zone_entry',
@@ -99,8 +99,8 @@ class FirebaseNotificationService
             return false;
         }
 
-        $title = "🚪 Sortie de zone de sécurité";
-        $body = "{$assignedUser->name} a quitté la zone '{$safeZone->name}'";
+        $title = "🚪 {$assignedUser->name} a quitté {$safeZone->name}";
+        $body = "Détecté à l'instant";
 
         $data = [
             'type' => 'safe_zone_exit',
@@ -155,8 +155,8 @@ class FirebaseNotificationService
             return false;
         }
 
-        $title = "📨 Nouvelle invitation";
-        $body = "{$inviter->name} vous invite à partager votre localisation";
+        $title = "👋 {$inviter->name} t'invite sur AlertContacts";
+        $body = "Rejoins-le pour voir vos positions mutuelles";
 
         $data = [
             'type' => 'invitation',
@@ -179,9 +179,8 @@ class FirebaseNotificationService
         }
 
         if ($response === 'accepted') {
-            $title = "✅ Invitation acceptée";
-            $shareLevelText = $this->getShareLevelDisplayName($shareLevel);
-            $body = "{$invitee->name} a accepté votre invitation avec le niveau de partage : {$shareLevelText}";
+            $title = "🎉 {$invitee->name} a rejoint AlertContacts !";
+            $body = "Vous pouvez maintenant vous voir sur la carte";
             $icon = "✅";
         } else {
             $title = "❌ Invitation refusée";
@@ -278,10 +277,14 @@ class FirebaseNotificationService
         ];
 
         try {
-            $response = Http::withHeaders([
+            $http = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $accessToken,
                 'Content-Type' => 'application/json',
-            ])->post($this->fcmUrl, $payload);
+            ]);
+            if (config('app.env') === 'local') {
+                $http = $http->withoutVerifying();
+            }
+            $response = $http->post($this->fcmUrl, $payload);
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -338,6 +341,31 @@ class FirebaseNotificationService
         } else {
             return round($distance / 1000, 1) . ' km';
         }
+    }
+
+    /**
+     * Notifier un proche qu'il a été assigné à une zone de sécurité
+     */
+    public function sendZoneAssignmentNotification(User $assignedUser, User $owner, SafeZone $safeZone): bool
+    {
+        if (!$assignedUser->fcm_token) {
+            Log::warning("Utilisateur {$assignedUser->id} n'a pas de token FCM");
+            return false;
+        }
+
+        $firstName = explode(' ', $owner->name)[0];
+        $title = "📍 {$firstName} t'a ajouté(e) à une zone";
+        $body  = "Tu es maintenant suivi(e) dans \"{$safeZone->name}\"";
+
+        $data = [
+            'type'         => 'zone_assignment',
+            'safe_zone_id' => $safeZone->id,
+            'zone_name'    => $safeZone->name,
+            'owner_id'     => $owner->id,
+            'owner_name'   => $owner->name,
+        ];
+
+        return $this->sendNotification($assignedUser->fcm_token, $title, $body, $data, 'normal');
     }
 
     /**
@@ -404,7 +432,11 @@ class FirebaseNotificationService
             $jwt = $base64Header . '.' . $base64Payload . '.' . $base64Signature;
 
             // Échanger le JWT contre un token d'accès
-            $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
+            $http = Http::asForm();
+            if (config('app.env') === 'local') {
+                $http = $http->withoutVerifying();
+            }
+            $response = $http->post('https://oauth2.googleapis.com/token', [
                 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
                 'assertion' => $jwt,
             ]);

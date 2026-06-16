@@ -31,6 +31,7 @@ class RelationshipController extends Controller
                         'name' => $relationship->contact->name,
                         'email' => $relationship->contact->email,
                         'avatar_url' => '', // TODO: ajouter avatar
+                        'firebase_uid' => $relationship->contact->firebase_uid,
                     ],
                     'status' => $relationship->status,
                     'share_level' => $relationship->share_level,
@@ -118,6 +119,44 @@ class RelationshipController extends Controller
     }
 
     /**
+     * Mettre à jour les permissions de partage V4 d'une relation
+     */
+    public function updatePermissions(Request $request, $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'share_position'    => 'required|boolean',
+            'share_battery'     => 'required|boolean',
+            'share_zone_events' => 'required|boolean',
+            'share_speed'       => 'required|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        $relationship = Relationship::where('id', $id)
+            ->where('user_id', Auth::id())
+            ->where('status', 'accepted')
+            ->first();
+
+        if (!$relationship) {
+            return response()->json(['status' => 'error', 'message' => 'Relation introuvable'], 404);
+        }
+
+        $relationship->update($validator->validated());
+
+        return response()->json([
+            'status' => 'ok',
+            'data' => [
+                'share_position'    => $relationship->share_position,
+                'share_battery'     => $relationship->share_battery,
+                'share_zone_events' => $relationship->share_zone_events,
+                'share_speed'       => $relationship->share_speed,
+            ],
+        ]);
+    }
+
+    /**
      * Supprimer une relation (retirer un proche)
      */
     public function destroy(Request $request, $id): JsonResponse
@@ -179,6 +218,7 @@ class RelationshipController extends Controller
                         'name' => $relationship->contact->name,
                         'email' => $relationship->contact->email,
                         'avatar_url' => '', // TODO: ajouter avatar
+                        'firebase_uid' => $relationship->contact->firebase_uid,
                     ],
                     'status' => $relationship->status,
                     'share_level' => $relationship->share_level,
@@ -259,6 +299,7 @@ class RelationshipController extends Controller
                     'name' => $foundUser->name,
                     'email' => $foundUser->email,
                     'avatar_url' => '', // TODO: ajouter avatar
+                    'firebase_uid' => $foundUser->firebase_uid,
                 ];
             });
 

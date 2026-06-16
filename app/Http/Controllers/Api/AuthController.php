@@ -296,25 +296,32 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // Récupérer les zones de sécurité de l'utilisateur
-            $safeZones = SafeZone::where('owner_id', $user->id)->get()->map(function ($zone) {
-                return [
-                    'id' => $zone->id,
-                    'type' => 'safe',
-                    'name' => $zone->name,
-                    'description' => $zone->description,
-                    'center' => [
-                        'lat' => $zone->center->latitude,
-                        'lng' => $zone->center->longitude,
-                    ],
-                    'radius_meters' => $zone->radius_meters,
-                    'icon_key' => $zone->icon_key,
-                    'address' => $zone->address,
-                    'member_ids' => $zone->member_ids ?? [],
-                    'created_at' => $zone->created_at->toISOString(),
-                    'updated_at' => $zone->updated_at->toISOString(),
-                ];
-            });
+            // Récupérer les zones de sécurité avec leurs assignations actives
+            $safeZones = SafeZone::where('owner_id', $user->id)
+                ->with(['assignments' => fn($q) => $q->where('is_active', true)])
+                ->get()
+                ->map(function ($zone) {
+                    return [
+                        'id' => $zone->id,
+                        'type' => 'safe',
+                        'name' => $zone->name,
+                        'description' => null,
+                        'center' => [
+                            'lat' => $zone->center->latitude,
+                            'lng' => $zone->center->longitude,
+                        ],
+                        'radius_meters' => $zone->radius_m,
+                        'icon_key' => $zone->icon,
+                        'address' => null,
+                        'member_ids' => $zone->assignments
+                            ->pluck('assigned_user_id')
+                            ->map(fn($id) => (string) $id)
+                            ->values()
+                            ->all(),
+                        'created_at' => $zone->created_at->toISOString(),
+                        'updated_at' => $zone->updated_at->toISOString(),
+                    ];
+                });
 
             // Récupérer les zones de danger de l'utilisateur
             $dangerZones = DangerZone::where('reported_by', $user->id)->get()->map(function ($zone) {
