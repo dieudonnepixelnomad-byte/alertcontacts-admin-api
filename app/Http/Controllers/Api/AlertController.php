@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\DangerZone;
 use App\Models\DangerZoneConfirmation;
 use App\Models\DangerZoneReport;
+use App\Services\FirebaseNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class AlertController extends Controller
@@ -28,6 +30,7 @@ class AlertController extends Controller
         ]);
 
         if ($v->fails()) {
+            Log::warning('[AlertController.nearby] validation échouée', ['errors' => $v->errors()->toArray()]);
             return response()->json(['status' => 'error', 'errors' => $v->errors()], 422);
         }
 
@@ -35,11 +38,19 @@ class AlertController extends Controller
         $lng = (float) $request->lng;
         $userId = Auth::id();
 
+        Log::info('[AlertController.nearby] requête reçue', [
+            'user_id' => $userId,
+            'lat'     => $lat,
+            'lng'     => $lng,
+        ]);
+
         $contactIds = DB::table('relationships')
             ->where('user_id', $userId)
             ->where('status', 'accepted')
             ->pluck('contact_id')
             ->toArray();
+
+        Log::debug('[AlertController.nearby] contacts acceptés', ['count' => count($contactIds)]);
 
         // Filtre d'expiry basé sur la gravity — low=30min, medium=1h, high=2h
         $alerts = DangerZone::active()
@@ -60,16 +71,31 @@ class AlertController extends Controller
                   });
             })
             ->whereRaw("
-                (6371000 * acos(
+                (6371000 * acos(LEAST(1.0,
                     cos(radians(?)) * cos(radians(center_lat)) *
                     cos(radians(center_lng) - radians(?)) +
                     sin(radians(?)) * sin(radians(center_lat))
-                )) <= radius_m
+                ))) <= radius_m
             ", [$lat, $lng, $lat])
-            ->get()
-            ->map(fn($a) => $this->formatAlert($a));
+            ->get();
 
-        return response()->json(['status' => 'ok', 'data' => $alerts]);
+        Log::info('[AlertController.nearby] résultat', [
+            'user_id'        => $userId,
+            'lat'            => $lat,
+            'lng'            => $lng,
+            'alerts_count'   => $alerts->count(),
+            'alert_ids'      => $alerts->pluck('id')->toArray(),
+            'severities'     => $alerts->pluck('severity')->toArray(),
+            'notify_radius'  => 'radius_m * 2 (approach buffer)',
+        ]);
+
+        if ($alerts->isEmpty()) {
+            Log::debug('[AlertController.nearby] aucune alerte — vérifier: is_active=1, last_report_at récent, position dans radius_m');
+        }
+
+        $formatted = $alerts->map(fn($a) => $this->formatAlert($a));
+
+        return response()->json(['status' => 'ok', 'data' => $formatted]);
     }
 
     public function store(Request $request): JsonResponse
@@ -107,6 +133,11 @@ class AlertController extends Controller
             'last_report_at' => now(),
         ]);
 
+        // Notifier en asynchrone les utilisateurs à proximité via FCM
+        dispatch(function () use ($alert) {
+            (new FirebaseNotificationService())->sendCommunityAlert($alert);
+        })->onQueue('alerts');
+
         return response()->json(['status' => 'ok', 'data' => $this->formatAlert($alert)], 201);
     }
 
@@ -116,10 +147,10 @@ class AlertController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Alerte inactive'], 404);
         }
 
-        DangerZoneConfirmation::firstOrCreate([
-            'danger_zone_id' => $alert->id,
-            'user_id'        => Auth::id(),
-        ]);
+        DangerZoneConfirmation::firstOrCreate(
+            ['danger_zone_id' => $alert->id, 'user_id' => Auth::id()],
+            ['confirmed_at' => now()]
+        );
 
         $alert->increment('confirmations');
 

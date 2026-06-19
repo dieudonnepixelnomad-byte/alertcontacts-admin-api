@@ -834,7 +834,13 @@ class DangerZonesController extends Controller
             [$limit, $severities] = $this->viewportLodParams($zoom);
 
             $query = DangerZone::where('is_active', true)
-                ->where('last_report_at', '>=', now()->subDays(30))
+                ->whereRaw("last_report_at >= DATE_SUB(NOW(), INTERVAL
+                    CASE severity
+                        WHEN 'low'    THEN 30
+                        WHEN 'medium' THEN 60
+                        WHEN 'high'   THEN 120
+                        ELSE 60
+                    END MINUTE)")
                 ->whereBetween('center_lat', [$south, $north])
                 ->whereBetween('center_lng', [$west, $east]);
 
@@ -886,7 +892,7 @@ class DangerZonesController extends Controller
     {
         return match (true) {
             $zoom < 10  => [200,  ['high']],
-            $zoom < 13  => [500,  ['med', 'high']],
+            $zoom < 13  => [500,  ['medium', 'high']],
             default     => [1000, null],
         };
     }

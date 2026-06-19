@@ -161,15 +161,26 @@ class ZoneController extends Controller
     private function formatZone(SafeZone $zone): array
     {
         return [
-            'id'         => $zone->id,
-            'name'       => $zone->name,
-            'icon'       => $zone->icon,
-            'lat'        => $zone->center?->latitude,
-            'lng'        => $zone->center?->longitude,
-            'radius'     => $zone->radius_m,
-            'is_active'  => $zone->is_active,
-            'contacts'   => $zone->contacts?->pluck('id') ?? [],
-            'created_at' => $zone->created_at->toISOString(),
+            'id'             => $zone->id,
+            'type'           => 'safe',
+            'name'           => $zone->name,
+            'description'    => null,
+            'icon_key'       => $zone->icon,
+            'address'        => null,
+            'center'         => [
+                'lat' => $zone->center?->latitude,
+                'lng' => $zone->center?->longitude,
+            ],
+            'radius_meters'  => $zone->radius_m,
+            'is_active'      => $zone->is_active,
+            'member_ids'     => $zone->assignments()
+                ->where('is_active', true)
+                ->pluck('assigned_user_id')
+                ->map(fn($id) => (string) $id)
+                ->values()
+                ->all(),
+            'created_at'     => $zone->created_at->toISOString(),
+            'updated_at'     => $zone->updated_at->toISOString(),
         ];
     }
 

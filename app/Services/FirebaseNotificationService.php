@@ -369,6 +369,88 @@ class FirebaseNotificationService
     }
 
     /**
+     * Notifier les utilisateurs proches lors de la création d'une alerte communautaire.
+     * Trouve les users dont la dernière position connue est dans le rayon de l'alerte.
+     */
+    public function sendCommunityAlert(DangerZone $alert): int
+    {
+        $gravityEmoji = match($alert->severity) {
+            'high'   => '🔴',
+            'medium' => '🟠',
+            default  => '🟡',
+        };
+
+        $typeLabels = [
+            'accident'           => 'Accident',
+            'suspect'            => 'Personne suspecte',
+            'fire'               => 'Incendie',
+            'aggression'         => 'Agression',
+            'suspicious_package' => 'Colis suspect',
+            'other'              => 'Incident',
+        ];
+        $typeLabel = $typeLabels[$alert->danger_type] ?? 'Incident';
+
+        // Trouver les users avec une position récente (dernières 24h) dans le rayon de l'alerte
+        $nearbyUsers = \DB::table('user_locations as ul')
+            ->join('users as u', 'u.id', '=', 'ul.user_id')
+            ->whereNotNull('u.fcm_token')
+            ->where('ul.captured_at_device', '>=', now()->subHours(24))
+            // Sous-requête : ne garder que la position la plus récente par user
+            ->whereRaw('ul.id = (SELECT id FROM user_locations WHERE user_id = ul.user_id ORDER BY captured_at_device DESC LIMIT 1)')
+            // Filtre haversine dans le rayon de l'alerte
+            ->whereRaw("
+                (6371000 * acos(LEAST(1.0,
+                    cos(radians(?)) * cos(radians(ul.latitude)) *
+                    cos(radians(ul.longitude) - radians(?)) +
+                    sin(radians(?)) * sin(radians(ul.latitude))
+                ))) <= ?
+            ", [$alert->center_lat, $alert->center_lng, $alert->center_lat, $alert->radius_m])
+            ->select('u.id', 'u.fcm_token', \DB::raw("
+                ROUND(6371000 * acos(LEAST(1.0,
+                    cos(radians({$alert->center_lat})) * cos(radians(ul.latitude)) *
+                    cos(radians(ul.longitude) - radians({$alert->center_lng})) +
+                    sin(radians({$alert->center_lat})) * sin(radians(ul.latitude))
+                ))) as distance_m
+            "))
+            ->get();
+
+        $sent = 0;
+        foreach ($nearbyUsers as $userRow) {
+            // Ne pas notifier le créateur de l'alerte
+            if ($alert->reported_by && $userRow->id === $alert->reported_by) {
+                continue;
+            }
+
+            $distanceM = (int) $userRow->distance_m;
+            $title = "{$gravityEmoji} {$typeLabel} signalé à {$distanceM}m";
+            $body  = $distanceM < 1000
+                ? "Incident signalé à {$distanceM} mètres de vous"
+                : "Incident signalé à " . round($distanceM / 1000, 1) . " km de vous";
+
+            $data = [
+                'type'             => 'community_alert',
+                'alert_id'         => $alert->id,
+                'gravity'          => $alert->severity,
+                'alert_type'       => $alert->danger_type,
+                'distance_meters'  => $distanceM,
+                'lat'              => $alert->center_lat,
+                'lng'              => $alert->center_lng,
+            ];
+
+            if ($this->sendNotification($userRow->fcm_token, $title, $body, $data, $alert->severity === 'high' ? 'high' : 'normal')) {
+                $sent++;
+            }
+        }
+
+        Log::info("[FirebaseNotificationService] sendCommunityAlert: {$sent}/{$nearbyUsers->count()} notifications envoyées", [
+            'alert_id' => $alert->id,
+            'gravity'  => $alert->severity,
+        ]);
+
+        return $sent;
+    }
+
+    /**
      * Envoyer une notification de test
      */
     public function sendTestNotification(User $user): bool

@@ -286,7 +286,14 @@ class AuthController extends Controller
         try {
             $user = $request->user();
 
+            \Log::info('[getMyZones] requête reçue', [
+                'user_id' => $user?->id,
+                'user_email' => $user?->email,
+                'auth_header' => $request->header('Authorization') ? 'présent' : 'ABSENT ⚠️',
+            ]);
+
             if (!$user) {
+                \Log::warning('[getMyZones] user non authentifié');
                 return response()->json([
                     'success' => false,
                     'error' => [
@@ -322,6 +329,12 @@ class AuthController extends Controller
                         'updated_at' => $zone->updated_at->toISOString(),
                     ];
                 });
+
+            \Log::info('[getMyZones] safe zones trouvées', [
+                'user_id'    => $user->id,
+                'count'      => $safeZones->count(),
+                'zone_ids'   => $safeZones->pluck('id')->all(),
+            ]);
 
             // Récupérer les zones de danger de l'utilisateur
             $dangerZones = DangerZone::where('reported_by', $user->id)->get()->map(function ($zone) {
