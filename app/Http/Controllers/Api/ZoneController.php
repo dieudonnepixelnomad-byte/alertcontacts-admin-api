@@ -16,13 +16,28 @@ class ZoneController extends Controller
 {
     public function index(): JsonResponse
     {
-        $zones = SafeZone::where('owner_id', Auth::id())
+        $userId = Auth::id();
+
+        $ownedZones = SafeZone::where('owner_id', $userId)
             ->where('is_active', true)
             ->with('contacts')
             ->get()
             ->map(fn($z) => $this->formatZone($z));
 
-        return response()->json(['status' => 'ok', 'data' => $zones]);
+        // Zones créées par d'autres utilisateurs où cet utilisateur est assigné
+        $assignedZones = SafeZone::whereHas('assignments', fn($q) =>
+                $q->where('assigned_user_id', $userId)->where('is_active', true)
+            )
+            ->where('is_active', true)
+            ->where('owner_id', '!=', $userId)
+            ->with('contacts')
+            ->get()
+            ->map(fn($z) => $this->formatZone($z));
+
+        return response()->json([
+            'status' => 'ok',
+            'data'   => $ownedZones->merge($assignedZones)->values(),
+        ]);
     }
 
     public function store(Request $request): JsonResponse

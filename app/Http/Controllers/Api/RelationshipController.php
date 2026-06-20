@@ -18,34 +18,46 @@ class RelationshipController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
-        
+
         $relationships = Relationship::where('user_id', $user->id)
             ->with('contact')
             ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Charger toutes les relations inverses en une seule requête
+        $reverseRels = Relationship::whereIn('user_id', $relationships->pluck('contact_id'))
+            ->where('contact_id', $user->id)
             ->get()
-            ->map(function ($relationship) {
-                return [
-                    'id' => $relationship->id,
-                    'contact' => [
-                        'id' => $relationship->contact->id,
-                        'name' => $relationship->contact->name,
-                        'email' => $relationship->contact->email,
-                        'avatar_url' => '', // TODO: ajouter avatar
-                        'firebase_uid' => $relationship->contact->firebase_uid,
-                    ],
-                    'status' => $relationship->status,
-                    'share_level' => $relationship->share_level,
-                    'can_see_me' => $relationship->can_see_me,
-                    'created_at' => $relationship->created_at->toISOString(),
-                    'accepted_at' => $relationship->accepted_at?->toISOString(),
-                    'refused_at' => $relationship->refused_at?->toISOString(),
-                ];
-            });
+            ->keyBy('user_id');
+
+        $mapped = $relationships->map(function ($relationship) use ($reverseRels) {
+            // can_see_contact = le contact a activé son partage vers moi
+            $reverse = $reverseRels->get($relationship->contact_id);
+            $canSeeContact = $reverse ? (bool) $reverse->can_see_me : false;
+
+            return [
+                'id' => $relationship->id,
+                'contact' => [
+                    'id' => $relationship->contact->id,
+                    'name' => $relationship->contact->name,
+                    'email' => $relationship->contact->email,
+                    'avatar_url' => '',
+                    'firebase_uid' => $relationship->contact->firebase_uid,
+                ],
+                'status' => $relationship->status,
+                'share_level' => $relationship->share_level,
+                'can_see_me' => (bool) $relationship->can_see_me,
+                'can_see_contact' => $canSeeContact,
+                'created_at' => $relationship->created_at->toISOString(),
+                'accepted_at' => $relationship->accepted_at?->toISOString(),
+                'refused_at' => $relationship->refused_at?->toISOString(),
+            ];
+        });
 
         return response()->json([
             'success' => true,
             'data' => [
-                'relationships' => $relationships
+                'relationships' => $mapped
             ]
         ]);
     }

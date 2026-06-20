@@ -231,23 +231,25 @@ class InvitationController extends Controller
             }
 
             // Créer la relation bidirectionnelle
-            // Relation: inviter -> user (celui qui accepte)
+            // CDC : A (inviteur) voit B (invité) ✅ — B voit A grisé jusqu'à invitation retour
+            //
+            // Ligne inviteur (Papa) : can_see_me=false → Fils ne peut pas voir Papa encore
             Relationship::create([
                 'user_id' => $inviter->id,
                 'contact_id' => $user->id,
                 'status' => 'accepted',
-                'share_level' => $request->input('share_level'),
-                'can_see_me' => true,
+                'share_level' => $invitation->default_share_level ?? 'realtime',
+                'can_see_me' => false,
                 'accepted_at' => now(),
             ]);
 
-            // Relation inverse: user -> inviter
+            // Ligne invité (Fils) : can_see_me=true → Papa peut voir Fils ✅
             Relationship::create([
                 'user_id' => $user->id,
                 'contact_id' => $inviter->id,
                 'status' => 'accepted',
-                'share_level' => 'none', // Par défaut, l'invité ne partage pas avec l'inviteur
-                'can_see_me' => false,
+                'share_level' => $request->input('share_level'),
+                'can_see_me' => true,
                 'accepted_at' => now(),
             ]);
 
