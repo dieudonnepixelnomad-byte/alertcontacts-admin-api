@@ -18,7 +18,7 @@
 /public/storage
 /storage/*.key
 /storage/pail
-/vendor
+# /vendor — inclus dans git pour déploiement Hostinger shared
 Homestead.json
 Homestead.yaml
 Thumbs.db
