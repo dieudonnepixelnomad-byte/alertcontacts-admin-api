@@ -136,6 +136,15 @@ class User extends Authenticatable implements FilamentUser
         return $this->is_admin;
     }
 
+    /**
+     * L'utilisateur dispose-t-il d'un abonnement payant (Solo ou Famille) ?
+     * CDC §10.1 — les limites du tier Gratuit ne s'appliquent qu'aux autres.
+     */
+    public function isPaidTier(): bool
+    {
+        return in_array($this->tier ?? 'free', ['solo', 'famille'], true);
+    }
+
     // Can access Panel Filament Admin
     public function canAccessPanel(Panel $panel): bool
     {

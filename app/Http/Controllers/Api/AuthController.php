@@ -126,6 +126,7 @@ class AuthController extends Controller
                         'avatar_url' => $user->avatar_url,
                         'phone_number' => $user->phone_number,
                         'email_verified_at' => $user->email_verified_at,
+                        'tier' => $user->tier ?? 'free',
                     ],
                     'token' => $token,
                 ]
@@ -274,6 +275,9 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                // Le client en a besoin pour appliquer la fenêtre d'historique
+                // des alertes (CDC §10.1 — 24 h en Gratuit, 30 j en Solo/Famille)
+                'tier' => $user->tier ?? 'free',
             ]
         ]);
     }

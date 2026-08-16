@@ -6,6 +6,22 @@ return [
         'contacts_limit'      => env('FREE_CONTACTS_LIMIT', 2),
         'zones_limit'         => env('FREE_ZONES_LIMIT', 1),
         'alert_history_hours' => 24,
+        // V4.1 §10.2 — contournements de gravité low/medium par mois en tier Gratuit.
+        // La gravité high est gratuite et illimitée : on ne monétise jamais la survie.
+        'avoidances_per_month' => env('FREE_AVOIDANCES_PER_MONTH', 3),
+        'route_history_hours'  => 24,
+    ],
+
+    // V4.1 §10.2 — module Trajets
+    'routes' => [
+        'history_hours_paid'     => 720, // 30 jours en Solo/Famille
+        'recent_destinations'    => 5,
+        // La surveillance pendant le trajet (§5.5) est réservée aux tiers payants
+        'monitoring_tiers'       => ['solo', 'famille'],
+        // §5.6 — au-delà de ce surcoût, on propose sans imposer
+        'detour_warning_ratio'   => 1.5,
+        // Gravités dont le contournement est gratuit, illimité, sans condition (§10.3b)
+        'free_avoidance_severities' => ['high'],
     ],
 
     'trial' => [

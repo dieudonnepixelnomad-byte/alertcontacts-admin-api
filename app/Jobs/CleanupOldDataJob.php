@@ -124,7 +124,12 @@ class CleanupOldDataJob implements ShouldQueue
             $totalDeleted += $deleted;
             Log::info("✅ personal_access_tokens: {$deleted} tokens expirés supprimés");
 
-            // 8. Optimisation des tables après nettoyage
+            // 8. Nettoyage des incidents communautaires terminés (V4.1)
+            $deleted = $this->cleanupIncidentsAndRoutes();
+            $totalDeleted += $deleted;
+            Log::info("✅ incidents/alert_reports/routes: {$deleted} entrées supprimées");
+
+            // 9. Optimisation des tables après nettoyage
             $this->optimizeTables();
 
             $duration = round(microtime(true) - $startTime, 2);
@@ -137,6 +142,64 @@ class CleanupOldDataJob implements ShouldQueue
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Nettoyage des incidents communautaires terminés et des trajets — V4.1 §7
+     *
+     * Seuls les incidents non actifs sont purgés : un incident 'active' n'est
+     * jamais supprimé, quel que soit son âge (un chantier vit 7 jours, §4.9).
+     */
+    private function cleanupIncidentsAndRoutes(): int
+    {
+        $totalDeleted = 0;
+
+        $incidentCutoff = Carbon::now()->subDays($this->retentionConfig['incidents'] ?? 90);
+        do {
+            $deleted = DB::table('incidents')
+                ->whereIn('status', ['resolved', 'expired', 'rejected'])
+                ->where('updated_at', '<', $incidentCutoff)
+                ->limit($this->batchSize)
+                ->delete();
+
+            $totalDeleted += $deleted;
+
+            if ($deleted > 0) {
+                usleep(100000);
+            }
+        } while ($deleted > 0);
+
+        // Signalements orphelins (incident_id passé à NULL par la FK) ou anciens
+        $reportCutoff = Carbon::now()->subDays($this->retentionConfig['alert_reports'] ?? 90);
+        do {
+            $deleted = DB::table('alert_reports')
+                ->where('created_at', '<', $reportCutoff)
+                ->limit($this->batchSize)
+                ->delete();
+
+            $totalDeleted += $deleted;
+
+            if ($deleted > 0) {
+                usleep(100000);
+            }
+        } while ($deleted > 0);
+
+        $routeCutoff = Carbon::now()->subDays($this->retentionConfig['routes'] ?? 90);
+        do {
+            $deleted = DB::table('routes')
+                ->whereIn('status', ['completed', 'cancelled'])
+                ->where('created_at', '<', $routeCutoff)
+                ->limit($this->batchSize)
+                ->delete();
+
+            $totalDeleted += $deleted;
+
+            if ($deleted > 0) {
+                usleep(100000);
+            }
+        } while ($deleted > 0);
+
+        return $totalDeleted;
     }
 
     /**

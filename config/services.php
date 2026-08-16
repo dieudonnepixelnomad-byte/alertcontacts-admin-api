@@ -45,4 +45,17 @@ return [
         'webhook_secret' => env('REVENUECAT_WEBHOOK_SECRET'),
     ],
 
+    /*
+    | HERE Routing API v8 — CDC V4.1 §5.2
+    |
+    | La clé ne doit JAMAIS être embarquée dans l'APK : Flutter n'appelle
+    | jamais HERE directement, tout passe par Laravel (§5.3).
+    | Sans clé configurée, RoutingServiceProvider retombe automatiquement sur
+    | FakeRoutingProvider — le module Trajets reste développable et testable.
+    */
+    'here' => [
+        'api_key'  => env('HERE_API_KEY'),
+        'base_url' => env('HERE_ROUTING_URL', 'https://router.hereapi.com/v8'),
+    ],
+
 ];

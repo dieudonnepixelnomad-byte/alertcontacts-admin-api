@@ -214,13 +214,11 @@ class InvitationController extends Controller
             }
 
             // Vérifier les restrictions d'abonnement pour l'inviteur
-            // Un utilisateur gratuit ne peut avoir que 3 proches maximum
-            $isInviterPremium = false; // TODO: Implémenter la vérification d'abonnement réelle
-            $maxContactsForFreeUser = 3;
-            
-            if (!$isInviterPremium) {
+            // CDC §10.1 — le tier Gratuit est plafonné à `contacts_limit` proches
+            if (!$inviter->isPaidTier()) {
+                $maxContactsForFreeUser = (int) config('alertcontacts.free_tier.contacts_limit', 2);
                 $currentContactsCount = $inviter->myContacts()->count();
-                
+
                 if ($currentContactsCount >= $maxContactsForFreeUser) {
                     return response()->json([
                         'success' => false,

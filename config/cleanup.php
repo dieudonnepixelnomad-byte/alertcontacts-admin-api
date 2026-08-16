@@ -71,6 +71,29 @@ return [
             'batch_size' => 100,
             'description' => 'Lots de jobs'
         ],
+
+        // 🚨 Incidents communautaires terminés — V4.1 §7.2
+        // Seuls les incidents non actifs sont purgés. Les alert_reports
+        // rattachés partent avec eux (ON DELETE SET NULL puis purge orpheline).
+        'incidents' => [
+            'days' => env('CLEANUP_INCIDENTS_DAYS', 90),
+            'batch_size' => 500,
+            'description' => 'Incidents communautaires résolus/expirés/rejetés'
+        ],
+
+        // 📝 Signalements bruts — V4.1 §7.1
+        'alert_reports' => [
+            'days' => env('CLEANUP_ALERT_REPORTS_DAYS', 90),
+            'batch_size' => 500,
+            'description' => 'Signalements communautaires bruts'
+        ],
+
+        // 🗺️ Trajets terminés — V4.1 §7.3
+        'routes' => [
+            'days' => env('CLEANUP_ROUTES_DAYS', 90),
+            'batch_size' => 500,
+            'description' => 'Trajets terminés ou annulés'
+        ],
     ],
 
     /*
@@ -112,6 +135,9 @@ return [
             'telescope_entries',
             'user_activities',
             'safe_zone_events',
+            'incidents',
+            'alert_reports',
+            'routes',
         ],
         
         // Seuil minimum de suppression pour déclencher l'optimisation

@@ -46,6 +46,28 @@ class AppServiceProvider extends ServiceProvider
                 ], 429));
         });
 
+        // V4.1 §4.10 règle 4 — plafond de signalements par utilisateur et par
+        // heure, contre le spam automatisé. Attaché à POST /api/v1/reports.
+        RateLimiter::for('reports', function (Request $request) {
+            return Limit::perHour((int) config('incidents.rate_limit.reports_per_hour', 10))
+                ->by($request->user()?->id ?: $request->ip())
+                ->response(fn() => response()->json([
+                    'status'  => 'error',
+                    'message' => 'Tu as signalé beaucoup d\'incidents récemment. Réessaie dans un moment.',
+                ], 429));
+        });
+
+        // V4.1 §5.4 — le routage appelle un fournisseur payant : on borne le
+        // volume par utilisateur avant même le gating monétisation.
+        RateLimiter::for('routing', function (Request $request) {
+            return Limit::perMinute(20)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response(fn() => response()->json([
+                    'status'  => 'error',
+                    'message' => 'Trop de calculs d\'itinéraire. Réessaie dans un instant.',
+                ], 429));
+        });
+
         RateLimiter::for('location', function (Request $request) {
             return Limit::perMinute(1)
                 ->by($request->user()?->id ?: $request->ip())

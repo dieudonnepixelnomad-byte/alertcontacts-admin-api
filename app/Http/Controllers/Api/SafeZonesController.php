@@ -177,9 +177,30 @@ class SafeZonesController extends Controller
     public function store(StoreSafeZoneRequest $request): JsonResponse
     {
         try {
+            $user = Auth::user();
+
+            // CDC §10.1 — le tier Gratuit est plafonné à `zones_limit` zones.
+            // Le Flutter affiche déjà le paywall, mais le serveur reste la source
+            // de vérité : sans ce garde-fou, un appel API direct contourne la limite.
+            if (!$user->isPaidTier()) {
+                $maxZonesForFreeUser = (int) config('alertcontacts.free_tier.zones_limit', 1);
+                $currentZonesCount = SafeZone::where('owner_id', $user->id)
+                    ->where('is_active', true)
+                    ->count();
+
+                if ($currentZonesCount >= $maxZonesForFreeUser) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => [
+                            'code' => 'SUBSCRIPTION_LIMIT_REACHED',
+                            'message' => "Vous avez atteint la limite de zones en mode gratuit ($maxZonesForFreeUser zone maximum).",
+                        ]
+                    ], 403);
+                }
+            }
+
             DB::beginTransaction();
 
-            $user = Auth::user();
             $data = $request->validated();
 
             // Préparer les données de base avec valeurs par défaut pour les champs géométriques

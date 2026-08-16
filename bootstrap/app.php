@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'tier' => \App\Http\Middleware\CheckSubscriptionTier::class,
+            // V4.1 §10.2 — quota de contournement, appliqué au seul /routes/{id}/avoid
+            'avoidance.quota' => \App\Http\Middleware\CheckAvoidanceQuota::class,
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {

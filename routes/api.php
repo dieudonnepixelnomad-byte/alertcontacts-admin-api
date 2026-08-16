@@ -21,6 +21,10 @@ use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\RevenueCatWebhookController;
 use App\Http\Controllers\Api\Admin\AppSettingsController as AdminAppSettingsController;
+// API v1 — CDC V4.1 (incidents communautaires & trajets)
+use App\Http\Controllers\Api\V1\IncidentController as V1IncidentController;
+use App\Http\Controllers\Api\V1\ReportController as V1ReportController;
+use App\Http\Controllers\Api\V1\RouteController as V1RouteController;
 
 // Route publique pour l'état de l'application
 Route::get('/app-status', AppStatusController::class);
@@ -122,8 +126,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/subscriptions/family/{member}', [SubscriptionController::class, 'familyRemove']);
     });
 
-    // V4 — Mode invisible
-    Route::post('/location/pause', [LocationController::class, 'pause']);
+    // V4 — Mode invisible (CDC §10.1 — réservé aux tiers payants)
+    Route::post('/location/pause', [LocationController::class, 'pause'])
+        ->middleware('tier:solo,famille');
+    // `resume` reste volontairement ouvert à tous : un utilisateur dont
+    // l'abonnement expire pendant une pause doit toujours pouvoir redevenir
+    // visible. Le gating porte sur l'activation, jamais sur la sortie.
     Route::post('/location/resume', [LocationController::class, 'resume']);
 
     // V4 — Alertes communautaires
@@ -206,5 +214,52 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
         Route::get('settings', [AdminAppSettingsController::class, 'index']);
         Route::put('settings', [AdminAppSettingsController::class, 'update']);
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| API v1 — Incidents communautaires & Trajets (CDC V4.1)
+|--------------------------------------------------------------------------
+|
+| Nouveau socle §8. Les routes /api/* ci-dessus restent inchangées : l'app en
+| production les utilise, la bascule côté client se fait écran par écran.
+|
+| Modèle : signalement (alert_reports) → clustering → incident (incidents).
+| Le rayon unique dérivé de la gravité est remplacé par trois valeurs
+| découplées — notification, affichage, évitement (§4.1).
+*/
+Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
+
+    // --- Signalements (§8.2) ---
+    // Pas de middleware 'tier' : §10.3a fait passer la création en tier Gratuit.
+    // Le module a un besoin critique de contributeurs pour exister.
+    Route::post('/reports', [V1ReportController::class, 'store'])->middleware('throttle:reports');
+    Route::get('/reports/duplicate-check', [V1ReportController::class, 'duplicateCheck']);
+
+    // --- Incidents (§8.2) ---
+    Route::get('/incidents', [V1IncidentController::class, 'index']);
+    Route::get('/incidents/{incident}', [V1IncidentController::class, 'show']);
+    Route::post('/incidents/{incident}/confirm', [V1IncidentController::class, 'confirm']);
+    Route::post('/incidents/{incident}/clear', [V1IncidentController::class, 'clear']);
+    Route::post('/incidents/{incident}/report-abuse', [V1IncidentController::class, 'reportAbuse']);
+
+    // --- Trajets (§8.1) ---
+    Route::prefix('routes')->group(function () {
+        Route::get('/history', [V1RouteController::class, 'history']);
+        Route::get('/recent-destinations', [V1RouteController::class, 'recentDestinations']);
+        Route::get('/avoidance-quota', [V1RouteController::class, 'avoidanceQuota']);
+
+        // 1 appel au moteur de routage
+        Route::post('/preview', [V1RouteController::class, 'preview'])->middleware('throttle:routing');
+
+        // Second appel, conditionnel — seul point de gating monétisation (§10.2)
+        Route::post('/{route}/avoid', [V1RouteController::class, 'avoid'])
+            ->middleware(['throttle:routing', 'avoidance.quota']);
+
+        Route::post('/{route}/select', [V1RouteController::class, 'select']);
+        Route::post('/{route}/start', [V1RouteController::class, 'start']);
+        Route::post('/{route}/end', [V1RouteController::class, 'end']);
+        Route::post('/{route}/cancel', [V1RouteController::class, 'cancel']);
     });
 });

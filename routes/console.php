@@ -4,6 +4,8 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use App\Jobs\CleanupOldDataJob;
+use App\Jobs\ExpireIncidentsJob;
+use App\Jobs\PassiveResolutionJob;
 use Illuminate\Support\Facades\Log;
 
 Artisan::command('inspire', function () {
@@ -16,6 +18,24 @@ Schedule::command('safezone:send-reminders')
     ->withoutOverlapping(10)
     ->appendOutputTo(storage_path('logs/safezone-reminders.log'))
     ->description('Envoi des rappels périodiques de sortie de zone de sécurité');
+
+/**
+ * 🚨 CYCLE DE VIE DES INCIDENTS COMMUNAUTAIRES — CDC V4.1 §8.3
+ *
+ * L'expiration tourne à la minute : un incident terminé ne doit dérouter
+ * personne une minute de plus qu'il ne faut (§4.7 / §2.4).
+ */
+Schedule::job(new ExpireIncidentsJob())
+    ->everyMinute()
+    ->withoutOverlapping(5)
+    ->onOneServer()
+    ->description('Expiration/rejet des incidents dont le TTL est dépassé');
+
+Schedule::job(new PassiveResolutionJob())
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->onOneServer()
+    ->description('Résolution passive des incidents traversés sans signalement');
 
 /**
  * 🧹 NETTOYAGE AUTOMATIQUE DES DONNÉES ANCIENNES
