@@ -43,7 +43,7 @@ Route::prefix('auth')->group(function () {
 Route::post('/users/fcm_token', [UserController::class, 'updateFcmToken']);
 
 // Routes protégées par Sanctum
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'minimum-app-version'])->group(function () {
     // Authentification
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -224,7 +224,7 @@ Route::middleware('auth:sanctum')->group(function () {
 | Le rayon unique dérivé de la gravité est remplacé par trois valeurs
 | découplées — notification, affichage, évitement (§4.1).
 */
-Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'minimum-app-version'])->group(function () {
 
     // --- Signalements (§8.2) ---
     // Pas de middleware 'tier' : §10.3a fait passer la création en tier Gratuit.

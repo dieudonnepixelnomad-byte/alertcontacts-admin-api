@@ -2,6 +2,15 @@
 
 return [
 
+    'app_updates' => [
+        // 0 désactive le blocage : publier d'abord une version qui envoie les
+        // headers, puis augmenter ces valeurs lorsque cette version est disponible.
+        'minimum_android_build' => (int) env('MINIMUM_ANDROID_BUILD', 0),
+        'minimum_ios_build' => (int) env('MINIMUM_IOS_BUILD', 0),
+        'android_store_url' => env('ANDROID_STORE_URL', 'https://play.google.com/store/apps/details?id=com.alertcontacts.alertcontacts'),
+        'ios_store_url' => env('IOS_STORE_URL', ''),
+    ],
+
     'free_tier' => [
         'contacts_limit'      => env('FREE_CONTACTS_LIMIT', 1),
         'zones_limit'         => env('FREE_ZONES_LIMIT', 1),
