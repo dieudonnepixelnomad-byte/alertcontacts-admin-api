@@ -106,6 +106,11 @@ class AuthController extends Controller
         }
 
         try {
+            // Le serveur ne peut distinguer une première inscription d'un reset
+            // qu'en indiquant ce fait objectif au client. Le mobile sait ensuite
+            // s'il possédait déjà un profil local à purger.
+            $accountCreated = User::findByFirebaseUid($request->input('userData.uid')) === null;
+
             // Créer ou mettre à jour l'utilisateur à partir des données Firebase
             $user = User::createOrUpdateFromFirebase($request->userData);
 
@@ -129,6 +134,7 @@ class AuthController extends Controller
                         'tier' => $user->tier ?? 'free',
                     ],
                     'token' => $token,
+                    'account_created' => $accountCreated,
                 ]
             ]);
 
