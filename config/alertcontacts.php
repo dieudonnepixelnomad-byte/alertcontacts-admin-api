@@ -3,7 +3,7 @@
 return [
 
     'free_tier' => [
-        'contacts_limit'      => env('FREE_CONTACTS_LIMIT', 2),
+        'contacts_limit'      => env('FREE_CONTACTS_LIMIT', 1),
         'zones_limit'         => env('FREE_ZONES_LIMIT', 1),
         'alert_history_hours' => 24,
         // V4.1 §10.2 — contournements de gravité low/medium par mois en tier Gratuit.
@@ -17,7 +17,7 @@ return [
         'history_hours_paid'     => 720, // 30 jours en Solo/Famille
         'recent_destinations'    => 5,
         // La surveillance pendant le trajet (§5.5) est réservée aux tiers payants
-        'monitoring_tiers'       => ['solo', 'famille'],
+        'monitoring_tiers'       => ['premium'],
         // §5.6 — au-delà de ce surcoût, on propose sans imposer
         'detour_warning_ratio'   => 1.5,
         // Gravités dont le contournement est gratuit, illimité, sans condition (§10.3b)
@@ -25,7 +25,7 @@ return [
     ],
 
     'trial' => [
-        'duration_days' => 7,
+        'duration_days' => 14,
     ],
 
     'alerts' => [
@@ -60,9 +60,7 @@ return [
     ],
 
     'prices' => [
-        'solo'   => ['monthly' => 4.99, 'annual' => 34.99],
-        'family' => ['monthly' => 8.99, 'annual' => 59.99],
-        'family_max_members' => 6,
+        'premium' => ['monthly' => 4.99, 'annual' => 49.99, 'trial_days' => 14],
     ],
 
     'paywall' => [

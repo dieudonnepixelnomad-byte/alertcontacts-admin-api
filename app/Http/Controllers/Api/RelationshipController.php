@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendRelationshipRemovalNotificationJob;
 use App\Models\Relationship;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -187,6 +188,7 @@ class RelationshipController extends Controller
         }
 
         $contactId = $relationship->contact_id;
+        $contact = User::find($contactId);
 
         // Supprimer les deux relations (bidirectionnelle)
         Relationship::where(function ($query) use ($user, $contactId) {
@@ -194,6 +196,12 @@ class RelationshipController extends Controller
         })->orWhere(function ($query) use ($user, $contactId) {
             $query->where('user_id', $contactId)->where('contact_id', $user->id);
         })->delete();
+
+        // La relation est supprimée pour les deux utilisateurs, mais le proche
+        // retiré doit être explicitement informé de ce changement.
+        if ($contact !== null) {
+            SendRelationshipRemovalNotificationJob::dispatch($contact, $user);
+        }
 
         return response()->json([
             'success' => true,

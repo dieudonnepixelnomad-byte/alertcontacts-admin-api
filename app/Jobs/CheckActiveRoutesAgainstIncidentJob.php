@@ -55,7 +55,7 @@ class CheckActiveRoutesAgainstIncidentJob implements ShouldQueue
         }
 
         $authorIds = $incident->reports->pluck('user_id')->filter()->unique()->all();
-        $monitoringTiers = (array) config('alertcontacts.routes.monitoring_tiers', ['solo', 'famille']);
+        $monitoringTiers = (array) config('alertcontacts.routes.monitoring_tiers', ['premium']);
 
         $routes = Route::query()
             ->active()

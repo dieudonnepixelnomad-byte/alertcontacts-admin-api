@@ -120,15 +120,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // V4 — Abonnements
     Route::get('/subscriptions', [SubscriptionController::class, 'index']);
-    Route::post('/subscriptions', [SubscriptionController::class, 'store']);
-    Route::middleware('tier:famille')->group(function () {
-        Route::post('/subscriptions/family/invite', [SubscriptionController::class, 'familyInvite']);
-        Route::delete('/subscriptions/family/{member}', [SubscriptionController::class, 'familyRemove']);
-    });
 
     // V4 — Mode invisible (CDC §10.1 — réservé aux tiers payants)
     Route::post('/location/pause', [LocationController::class, 'pause'])
-        ->middleware('tier:solo,famille');
+        ->middleware('tier:premium');
     // `resume` reste volontairement ouvert à tous : un utilisateur dont
     // l'abonnement expire pendant une pause doit toujours pouvoir redevenir
     // visible. Le gating porte sur l'activation, jamais sur la sortie.
@@ -139,7 +134,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/alerts/{alert}/confirm', [AlertController::class, 'confirm']);
     Route::post('/alerts/{alert}/deny', [AlertController::class, 'deny']);
     Route::post('/alerts/{alert}/report', [AlertController::class, 'report']);
-    Route::post('/alerts', [AlertController::class, 'store']); // tier:solo,famille via Flutter gate pour l'instant
+    Route::post('/alerts', [AlertController::class, 'store']);
 
     // Gestion des zones assignées aux proches
     Route::prefix('proches')->group(function () {
@@ -235,7 +230,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     // Pas de middleware 'tier' : §10.3a fait passer la création en tier Gratuit.
     // Le module a un besoin critique de contributeurs pour exister.
     Route::post('/reports', [V1ReportController::class, 'store'])->middleware('throttle:reports');
+    Route::get('/reports/mine', [V1ReportController::class, 'mine']);
     Route::get('/reports/duplicate-check', [V1ReportController::class, 'duplicateCheck']);
+    Route::delete('/reports/{report}', [V1ReportController::class, 'destroy']);
 
     // --- Incidents (§8.2) ---
     Route::get('/incidents', [V1IncidentController::class, 'index']);

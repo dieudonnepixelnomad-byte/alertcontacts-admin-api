@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\QueryException;
 
 class RevenueCatWebhookController extends Controller
 {
@@ -24,12 +25,30 @@ class RevenueCatWebhookController extends Controller
         $payload = $request->json()->all();
         $event   = $payload['event'] ?? null;
 
-        if (! $event || ! isset($event['type'], $event['app_user_id'])) {
-            return response()->json(['status' => 'ok']); // ignore malformed
+        if (! is_array($event) || ! isset($event['id'], $event['type'], $event['app_user_id'])) {
+            return response()->json(['status' => 'invalid_payload'], 422);
         }
 
         try {
-            $this->processEvent($event);
+            DB::transaction(function () use ($event) {
+                // L'unicité empêche les retries RevenueCat de réactiver ou
+                // d'expirer plusieurs fois un même abonnement.
+                DB::table('revenuecat_events')->insert([
+                    'event_id' => $event['id'],
+                    'event_type' => $event['type'],
+                    'payload_hash' => hash('sha256', json_encode($event, JSON_THROW_ON_ERROR)),
+                    'processed_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $this->processEvent($event);
+            });
+        } catch (QueryException $e) {
+            // Duplicate event: webhook delivery is at-least-once, so this is OK.
+            if (str_contains(strtolower($e->getMessage()), 'unique')) {
+                return response()->json(['status' => 'ok', 'duplicate' => true]);
+            }
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('RevenueCat webhook error', ['error' => $e->getMessage(), 'event' => $event['type']]);
             return response()->json(['status' => 'error'], 500);
@@ -65,13 +84,25 @@ class RevenueCatWebhookController extends Controller
     private function activateSubscription(User $user, array $event, string $productId): void
     {
         $tier = $this->tierFromProductId($productId);
-        if (! $tier) return;
+        if (! $tier) {
+            Log::warning('RevenueCat webhook: unsupported product', [
+                'product_id' => $productId,
+                'event_type' => $event['type'],
+            ]);
+            return;
+        }
 
         $isTrialing      = $event['type'] === 'TRIAL_STARTED';
         $expirationMs    = $event['expiration_at_ms'] ?? null;
-        $periodEnd       = $expirationMs ? now()->setTimestampMs($expirationMs) : now()->addMonth();
-        $billingCycle    = str_contains($productId, 'annual') ? 'annual' : 'monthly';
-        $rcSubscriptionId = $event['id'] ?? null;
+        // RevenueCat transmet les timestamps Unix en millisecondes, alors que
+        // DateTime::setTimestamp() attend des secondes. `setTimestampMs()`
+        // n'existe pas dans la version Carbon actuellement installée.
+        $periodEnd       = $expirationMs
+            ? now()->setTimestamp((int) floor(((int) $expirationMs) / 1000))
+            : now()->addMonth();
+        $annualProductId = config('services.revenuecat.products.1');
+        $billingCycle    = $productId === $annualProductId ? 'annual' : 'monthly';
+        $rcSubscriptionId = $event['original_transaction_id'] ?? $event['transaction_id'] ?? null;
 
         DB::table('subscriptions')->updateOrInsert(
             ['user_id' => $user->id, 'payment_provider' => 'revenuecat'],
@@ -95,7 +126,9 @@ class RevenueCatWebhookController extends Controller
     {
         // Cancelled but still active until period end — keep tier, mark cancelled
         $expirationMs = $event['expiration_at_ms'] ?? null;
-        $periodEnd    = $expirationMs ? now()->setTimestampMs($expirationMs) : null;
+        $periodEnd    = $expirationMs
+            ? now()->setTimestamp((int) floor(((int) $expirationMs) / 1000))
+            : null;
 
         DB::table('subscriptions')
             ->where('user_id', $user->id)
@@ -122,16 +155,15 @@ class RevenueCatWebhookController extends Controller
 
     private function tierFromProductId(string $productId): ?string
     {
-        if (str_contains($productId, 'famille')) return 'famille';
-        if (str_contains($productId, 'solo'))    return 'solo';
-        return null;
+        $products = config('services.revenuecat.products', []);
+        return in_array($productId, $products, true) ? 'premium' : null;
     }
 
     private function isAuthorized(Request $request): bool
     {
         $secret = config('services.revenuecat.webhook_secret');
-        if (! $secret) return true; // not configured yet — allow in dev
+        if (! $secret) return ! app()->environment('production');
 
-        return $request->header('Authorization') === $secret;
+        return hash_equals($secret, (string) $request->header('Authorization'));
     }
 }

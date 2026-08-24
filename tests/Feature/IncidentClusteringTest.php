@@ -209,6 +209,35 @@ class IncidentClusteringTest extends TestCase
         $this->assertFalse((bool) $result['incident']->affects_routing);
     }
 
+    public function test_report_owner_can_withdraw_one_of_multiple_reports(): void
+    {
+        $owner = User::factory()->create();
+        $first = $this->report($owner, 'fire', 48.86980, 2.33250);
+        $this->report(User::factory()->create(), 'fire', 48.86985, 2.33270);
+        $report = AlertReport::query()->where('user_id', $owner->id)->firstOrFail();
+
+        $this->actingAs($owner)
+            ->deleteJson("/api/v1/reports/{$report->id}")
+            ->assertOk()
+            ->assertJsonPath('status', 'ok');
+
+        $this->assertDatabaseMissing('alert_reports', ['id' => $report->id]);
+        $this->assertSame(1, $first['incident']->fresh()->report_count);
+    }
+
+    public function test_user_cannot_withdraw_another_users_report(): void
+    {
+        $owner = User::factory()->create();
+        $this->report($owner, 'fire', 48.86980, 2.33250);
+        $report = AlertReport::query()->where('user_id', $owner->id)->firstOrFail();
+
+        $this->actingAs(User::factory()->create())
+            ->deleteJson("/api/v1/reports/{$report->id}")
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('alert_reports', ['id' => $report->id]);
+    }
+
     /**
      * @param  array<string, mixed>  $extra
      * @return array{incident: Incident, merged: bool, routing_changed: bool}

@@ -137,12 +137,28 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * L'utilisateur dispose-t-il d'un abonnement payant (Solo ou Famille) ?
+     * L'utilisateur dispose-t-il de l'abonnement Premium ?
      * CDC §10.1 — les limites du tier Gratuit ne s'appliquent qu'aux autres.
      */
     public function isPaidTier(): bool
     {
-        return in_array($this->tier ?? 'free', ['solo', 'famille'], true);
+        return ($this->tier ?? 'free') === 'premium';
+    }
+
+    /**
+     * Le plafond de proches est une règle de serveur : l'interface mobile ne
+     * doit jamais être la seule barrière, car un lien d'invitation peut être
+     * utilisé hors de l'application de l'inviteur.
+     */
+    public function hasReachedContactsLimit(): bool
+    {
+        if ($this->isPaidTier()) {
+            return false;
+        }
+
+        $limit = (int) config('alertcontacts.free_tier.contacts_limit', 1);
+
+        return $this->myContacts()->count() >= $limit;
     }
 
     // Can access Panel Filament Admin

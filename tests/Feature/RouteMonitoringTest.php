@@ -145,7 +145,7 @@ class RouteMonitoringTest extends TestCase
 
     // --- Helpers ---
 
-    private function traveller(string $tier = 'solo'): User
+    private function traveller(string $tier = 'premium'): User
     {
         return User::factory()->create(['tier' => $tier, 'fcm_token' => 'token-test']);
     }

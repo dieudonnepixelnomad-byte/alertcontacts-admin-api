@@ -57,10 +57,13 @@ class RoutePlanningService
 
         $route = $this->persist($user, $data, $result);
 
+        // L'aperçu affiche toutes les alertes communautaires actives proches
+        // du trajet, y compris celles créées par l'utilisateur. L'exclusion
+        // de son propre signalement ne s'applique qu'aux push en trajet ;
+        // elle ne doit jamais masquer une information sur sa propre carte.
         $hits = $this->intersection->detectOnEncodedPolyline(
             $primary->polyline,
             $route->transport_mode,
-            $user->id
         );
 
         $this->recordHits($route, $hits, 'pre_departure');

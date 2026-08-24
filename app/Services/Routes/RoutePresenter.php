@@ -44,7 +44,8 @@ class RoutePresenter
             'destination_inside'  => $destinationInside,
             // §5.6 — la destination est dans la zone : on ne propose pas de
             // contournement, on prévient.
-            'can_avoid'           => !$destinationInside && $hits->isNotEmpty(),
+            'can_avoid'           => !$destinationInside && $hits
+                ->contains(fn (array $hit) => $hit['incident']->affects_routing),
             'message'             => $this->previewMessage($hits, $destinationInside),
         ];
     }

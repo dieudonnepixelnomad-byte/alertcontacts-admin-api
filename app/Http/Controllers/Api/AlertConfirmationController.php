@@ -38,7 +38,7 @@ class AlertConfirmationController extends Controller
             }
 
             // Vérifier que l'utilisateur connecté est bien le créateur de la zone
-            if ($pendingAlert->safeZone->user_id !== $user->id) {
+            if ($pendingAlert->safeZone->owner_id !== $user->id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Vous n\'êtes pas autorisé à confirmer cette alerte'
@@ -91,7 +91,7 @@ class AlertConfirmationController extends Controller
             // Récupérer toutes les alertes en attente pour les zones créées par l'utilisateur
             $pendingAlerts = PendingSafeZoneAlert::with(['safeZone', 'user', 'safeZoneEvent'])
                 ->whereHas('safeZone', function ($query) use ($user) {
-                    $query->where('user_id', $user->id);
+                    $query->where('owner_id', $user->id);
                 })
                 ->where('confirmed', false)
                 ->orderBy('created_at', 'desc')
@@ -159,7 +159,7 @@ class AlertConfirmationController extends Controller
             }
 
             // Vérifier que l'utilisateur connecté est le créateur de la zone de sécurité
-            if ($alert->safeZone->user_id !== $userId) {
+            if ($alert->safeZone->owner_id !== $userId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Vous n\'êtes pas autorisé à arrêter cette alerte'

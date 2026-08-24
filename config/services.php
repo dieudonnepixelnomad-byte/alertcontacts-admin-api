@@ -43,6 +43,10 @@ return [
 
     'revenuecat' => [
         'webhook_secret' => env('REVENUECAT_WEBHOOK_SECRET'),
+        'products' => [
+            env('REVENUECAT_PREMIUM_MONTHLY_PRODUCT_ID', 'premium_monthly'),
+            env('REVENUECAT_PREMIUM_ANNUAL_PRODUCT_ID', 'premium_annual'),
+        ],
     ],
 
     /*

@@ -66,7 +66,8 @@ class SendSafeZoneExitReminders implements ShouldQueue
                 $this->notificationService->sendSafeZoneExitReminder(
                     $alert->user_id,
                     $alert->safeZone,
-                    $alert->reminder_count + 1
+                    $alert->reminder_count + 1,
+                    $alert->safe_zone_event_id,
                 );
 
                 // Mettre à jour l'alerte

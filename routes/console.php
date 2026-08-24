@@ -25,8 +25,12 @@ Schedule::command('safezone:send-reminders')
  * L'expiration tourne à la minute : un incident terminé ne doit dérouter
  * personne une minute de plus qu'il ne faut (§4.7 / §2.4).
  */
-Schedule::job(new ExpireIncidentsJob())
+// L'expiration met à jour la source de vérité de la carte : elle ne doit pas
+// dépendre d'un worker de queue secondaire. Le planificateur l'exécute donc
+// directement chaque minute.
+Schedule::call(static fn () => app(ExpireIncidentsJob::class)->handle())
     ->everyMinute()
+    ->name('expire-community-incidents')
     ->withoutOverlapping(5)
     ->onOneServer()
     ->description('Expiration/rejet des incidents dont le TTL est dépassé');

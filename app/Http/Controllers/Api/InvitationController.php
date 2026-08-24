@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
@@ -40,6 +41,23 @@ class InvitationController extends Controller
         try {
             $user = Auth::user();
             $expiresInHours = $request->input('expires_in_hours', 24);
+
+            if ($user->hasReachedContactsLimit()) {
+                return $this->contactLimitResponse($user, 'Vous avez atteint votre limite de proches.');
+            }
+
+            // Une invitation adressée à un compte existant ne doit pas être
+            // créée si le destinataire ne peut pas légalement l'accepter.
+            $invitee = $request->filled('invitee_email')
+                ? User::where('email', $request->input('invitee_email'))->first()
+                : null;
+
+            if ($invitee && $invitee->hasReachedContactsLimit()) {
+                return $this->contactLimitResponse(
+                    $invitee,
+                    'Ce proche a déjà atteint sa limite de proches.'
+                );
+            }
             
             $invitation = Invitation::createInvitation([
                 'inviter_id' => $user->id,
@@ -53,12 +71,9 @@ class InvitationController extends Controller
             ]);
 
             // Notifier le destinataire s'il a déjà un compte
-            if ($request->filled('invitee_email')) {
-                $invitee = User::where('email', $request->input('invitee_email'))->first();
-                if ($invitee && $invitee->fcm_token) {
-                    SendInvitationNotificationJob::dispatch($invitee, $user)
-                        ->onQueue('invitations');
-                }
+            if ($invitee && $invitee->fcm_token) {
+                SendInvitationNotificationJob::dispatch($invitee, $user)
+                    ->onQueue('invitations');
             }
 
             return response()->json([
@@ -201,10 +216,35 @@ class InvitationController extends Controller
         }
 
         try {
-            $inviter = $invitation->inviter;
+            return DB::transaction(function () use ($request, $user, $invitation): JsonResponse {
+                // Verrouiller l'invitation et les deux utilisateurs évite que deux
+                // acceptations concurrentes dépassent la limite gratuite.
+                $invitation = Invitation::whereKey($invitation->id)->lockForUpdate()->first();
+                if (!$invitation || !$invitation->isValid()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invitation expirée ou déjà utilisée'
+                    ], 410);
+                }
+
+                $lockedUsers = User::whereIn('id', [$user->id, $invitation->inviter_id])
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
+                $inviter = $lockedUsers->get($invitation->inviter_id);
+                $invitee = $lockedUsers->get($user->id);
+
+                if (!$inviter || !$invitee) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Utilisateur introuvable'
+                    ], 404);
+                }
 
             // Vérifier qu'une relation n'existe pas déjà
-            $existingRelation = Relationship::between($user->id, $inviter->id)->first();
+                $existingRelation = Relationship::between($invitee->id, $inviter->id)->first();
             
             if ($existingRelation) {
                 return response()->json([
@@ -213,20 +253,14 @@ class InvitationController extends Controller
                 ], 409);
             }
 
-            // Vérifier les restrictions d'abonnement pour l'inviteur
-            // CDC §10.1 — le tier Gratuit est plafonné à `contacts_limit` proches
-            if (!$inviter->isPaidTier()) {
-                $maxContactsForFreeUser = (int) config('alertcontacts.free_tier.contacts_limit', 2);
-                $currentContactsCount = $inviter->myContacts()->count();
-
-                if ($currentContactsCount >= $maxContactsForFreeUser) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'SUBSCRIPTION_LIMIT_REACHED',
-                        'details' => "L'utilisateur qui vous a invité a atteint la limite de proches en mode gratuit ($maxContactsForFreeUser proches maximum)."
-                    ], 403);
+                // La limite s'applique aux DEUX personnes : accepter une invitation
+                // est aussi l'ajout d'un proche pour l'invité.
+                if ($inviter->hasReachedContactsLimit()) {
+                    return $this->contactLimitResponse($inviter, 'L\'utilisateur qui vous a invité a atteint sa limite de proches.');
                 }
-            }
+                if ($invitee->hasReachedContactsLimit()) {
+                    return $this->contactLimitResponse($invitee, 'Vous avez atteint votre limite de proches.');
+                }
 
             // Créer la relation bidirectionnelle
             // CDC : A (inviteur) voit B (invité) ✅ — B voit A grisé jusqu'à invitation retour
@@ -234,7 +268,7 @@ class InvitationController extends Controller
             // Ligne inviteur (Papa) : can_see_me=false → Fils ne peut pas voir Papa encore
             Relationship::create([
                 'user_id' => $inviter->id,
-                'contact_id' => $user->id,
+                'contact_id' => $invitee->id,
                 'status' => 'accepted',
                 'share_level' => $invitation->default_share_level ?? 'realtime',
                 'can_see_me' => false,
@@ -243,7 +277,7 @@ class InvitationController extends Controller
 
             // Ligne invité (Fils) : can_see_me=true → Papa peut voir Fils ✅
             Relationship::create([
-                'user_id' => $user->id,
+                'user_id' => $invitee->id,
                 'contact_id' => $inviter->id,
                 'status' => 'accepted',
                 'share_level' => $request->input('share_level'),
@@ -256,19 +290,20 @@ class InvitationController extends Controller
             // Déclencher la notification d'acceptation
             \App\Jobs\SendInvitationResponseNotificationJob::dispatch(
                 $invitation->inviter,
-                $user,
+                $invitee,
                 'accepted',
                 $request->input('share_level')
             );
 
-            return response()->json([
+                return response()->json([
                 'success' => true,
                 'message' => 'Invitation acceptée avec succès',
                 'data' => [
                     'relationship_created' => true,
                     'share_level' => $request->input('share_level'),
                 ]
-            ]);
+                ]);
+            });
 
         } catch (\Exception $e) {
             return response()->json([
@@ -276,6 +311,19 @@ class InvitationController extends Controller
                 'message' => 'Erreur lors de l\'acceptation de l\'invitation'
             ], 500);
         }
+    }
+
+    private function contactLimitResponse(User $user, string $details): JsonResponse
+    {
+        $limit = (int) config('alertcontacts.free_tier.contacts_limit', 1);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'SUBSCRIPTION_LIMIT_REACHED',
+            'details' => $details,
+            'limit' => $limit,
+            'user_id' => $user->id,
+        ], 403);
     }
 
     /**

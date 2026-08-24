@@ -3,7 +3,6 @@
 namespace App\Services\Routes;
 
 use App\Models\Incident;
-use App\Services\Incidents\RouteAvoidancePolicy;
 use App\Support\FlexiblePolyline;
 use App\Support\Geo;
 use Illuminate\Support\Collection;
@@ -17,9 +16,9 @@ use Illuminate\Support\Collection;
  *   2. bbox de la polyligne + marge → SELECT des incidents actifs (index bbox)
  *   3. Sous-échantillonner la polyligne tous les ~50 m
  *   4. Pour chaque candidat : d = min(distance(point, géométrie))
- *      si d <= incident.danger_buffer_m → HIT
- *   5. Appliquer RouteAvoidancePolicy (§4.9 + §4.10)
- *   6. Trier par gravité puis par distance au point de départ
+ *      si d <= buffer de routage, ou rayon d'affichage pour une alerte
+ *      informative, → HIT
+ *   5. Trier par gravité puis par distance au point de départ
  *
  * Optimisation : filtrer d'abord par bbox. On ne teste jamais les 4 000 points
  * d'une polyligne contre l'ensemble des incidents.
@@ -28,45 +27,30 @@ class IncidentIntersectionService
 {
     private const SEVERITY_RANK = ['high' => 3, 'medium' => 2, 'low' => 1];
 
-    public function __construct(private readonly RouteAvoidancePolicy $policy)
-    {
-    }
-
     /**
      * @return Collection<int, array{incident: Incident, min_distance_m: int, distance_from_origin_m: float}>
      */
     public function detectOnEncodedPolyline(
         string $encodedPolyline,
-        string $transportMode = 'car',
-        ?int $excludeAuthorId = null
     ): Collection {
-        return $this->detect(FlexiblePolyline::decode($encodedPolyline), $transportMode, $excludeAuthorId);
+        return $this->detect(FlexiblePolyline::decode($encodedPolyline));
     }
 
     /**
      * @param  array<int, array{0: float, 1: float}>  $polyline
      * @return Collection<int, array{incident: Incident, min_distance_m: int, distance_from_origin_m: float}>
      */
-    public function detect(
-        array $polyline,
-        string $transportMode = 'car',
-        ?int $excludeAuthorId = null
-    ): Collection {
+    public function detect(array $polyline): Collection {
         if (count($polyline) < 2) {
             return collect();
         }
 
         $sampled = $this->sample($polyline);
-        $candidates = $this->candidates($polyline, $excludeAuthorId);
+        $candidates = $this->candidates($polyline);
 
         $hits = collect();
 
         foreach ($candidates as $incident) {
-            // §5.6 — un accident de la route pèse moins à pied
-            if (!$this->policy->appliesToTransportMode($incident, $transportMode)) {
-                continue;
-            }
-
             $result = $this->closestApproach($incident, $sampled);
 
             if ($result === null) {
@@ -84,31 +68,21 @@ class IncidentIntersectionService
     }
 
     /**
-     * Incidents ayant autorité pour modifier un itinéraire et dont la bbox
-     * recoupe celle du trajet.
+     * Alertes communautaires actives dont la bbox recoupe celle du trajet.
+     *
+     * L'affichage ne se limite pas aux alertes autorisées à modifier le
+     * routage : un signalement non confirmé reste utile à l'utilisateur. Le
+     * booléen `affects_routing` décide séparément si « Contourner » est offert.
      *
      * @param  array<int, array{0: float, 1: float}>  $polyline
      * @return Collection<int, Incident>
      */
-    private function candidates(array $polyline, ?int $excludeAuthorId): Collection
+    private function candidates(array $polyline): Collection
     {
         $margin = (float) config('incidents.routing.bbox_margin_m', 2000);
         $bbox = Geo::bboxOf($polyline, $margin);
 
-        $query = Incident::query()->affectingRouting()->inBbox($bbox);
-
-        // §4.10 règle 1 — une alerte créée par un utilisateur ne modifie jamais
-        // son propre itinéraire. Protection anti-auto-manipulation.
-        if ($excludeAuthorId !== null) {
-            $query->whereNotExists(function ($sub) use ($excludeAuthorId) {
-                $sub->selectRaw('1')
-                    ->from('alert_reports')
-                    ->whereColumn('alert_reports.incident_id', 'incidents.id')
-                    ->where('alert_reports.user_id', $excludeAuthorId);
-            });
-        }
-
-        return $query->get();
+        return Incident::query()->active()->inBbox($bbox)->get();
     }
 
     /**
@@ -119,7 +93,10 @@ class IncidentIntersectionService
      */
     private function closestApproach(Incident $incident, array $sampled): ?array
     {
-        $buffer = (float) $incident->danger_buffer_m;
+        // Les alertes purement informatives n'ont pas de buffer de routage.
+        // Pour les rendre visibles près du trajet, on utilise alors leur rayon
+        // d'affichage, qui exprime justement l'incertitude du signalement.
+        $buffer = (float) ($incident->danger_buffer_m ?? $incident->display_radius_m);
         $best = null;
 
         foreach ($sampled as $entry) {

@@ -9,7 +9,12 @@ use App\Models\RouteIncidentHit;
 use App\Models\User;
 use App\Services\Incidents\IncidentClusteringService;
 use App\Services\Routes\AvoidanceQuotaService;
+use App\Services\Routes\IncidentIntersectionService;
 use App\Services\Routes\RoutePlanningService;
+use App\Services\Routing\FakeRoutingProvider;
+use App\Services\Routing\RoutingProvider;
+use App\Services\Routing\DTO\RouteRequest;
+use App\Services\Routing\DTO\RouteResult;
 use App\Support\FlexiblePolyline;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -46,9 +51,41 @@ class RoutePlanningTest extends TestCase
      */
     public function test_preview_without_incident_returns_no_hit(): void
     {
-        $preview = $this->preview(User::factory()->create());
+        $provider = new class implements RoutingProvider {
+            public int $calls = 0;
+
+            private FakeRoutingProvider $fake;
+
+            public function __construct()
+            {
+                $this->fake = new FakeRoutingProvider();
+            }
+
+            public function route(RouteRequest $request): RouteResult
+            {
+                $this->calls++;
+
+                return $this->fake->route($request);
+            }
+
+            public function name(): string
+            {
+                return 'counting-fake';
+            }
+        };
+
+        $planning = new RoutePlanningService(
+            $provider,
+            app(IncidentIntersectionService::class),
+        );
+        $preview = $planning->preview(User::factory()->create(), [
+            'origin' => self::ORIGIN,
+            'destination' => self::DESTINATION,
+            'transport_mode' => 'car',
+        ]);
 
         $this->assertCount(0, $preview['hits']);
+        $this->assertSame(1, $provider->calls);
         $this->assertSame(1, Route::count());
         $this->assertGreaterThan(2, count(FlexiblePolyline::decode($preview['route']->polyline)));
     }
@@ -67,17 +104,36 @@ class RoutePlanningTest extends TestCase
     }
 
     /**
-     * §4.10 règle 1 — une alerte créée par un utilisateur ne modifie jamais son
-     * propre itinéraire. Protection anti-auto-manipulation.
+     * Un utilisateur doit voir son propre signalement sur l'aperçu du trajet.
+     * Cette visibilité ne déclenche pas de push pendant le trajet.
      */
-    public function test_own_report_never_affects_own_route(): void
+    public function test_own_report_is_visible_on_own_route_preview(): void
     {
         $author = User::factory()->create();
         $this->incidentOnRoute($author);
 
         $preview = $this->preview($author);
 
-        $this->assertCount(0, $preview['hits']);
+        $this->assertCount(1, $preview['hits']);
+    }
+
+    /**
+     * Une alerte active sans autorité de reroutage reste visible : elle informe
+     * l'utilisateur, mais ne rend pas le bouton « Contourner » disponible.
+     */
+    public function test_display_only_incident_near_route_is_detected(): void
+    {
+        $this->reportAt(
+            User::factory()->create(),
+            'suspect',
+            self::ORIGIN['lat'] + 0.0005,
+            self::ORIGIN['lng'],
+        );
+
+        $preview = $this->preview(User::factory()->create());
+
+        $this->assertCount(1, $preview['hits']);
+        $this->assertFalse((bool) $preview['hits']->first()['incident']->affects_routing);
     }
 
     public function test_incident_far_from_route_is_ignored(): void
@@ -148,7 +204,7 @@ class RoutePlanningTest extends TestCase
 
     public function test_paid_tier_has_unlimited_avoidance(): void
     {
-        $user = User::factory()->create(['tier' => 'solo']);
+        $user = User::factory()->create(['tier' => 'premium']);
         $incident = $this->lowSeverityIncident();
 
         $this->exhaustQuota($user, $incident);

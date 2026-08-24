@@ -179,9 +179,8 @@ class SafeZonesController extends Controller
         try {
             $user = Auth::user();
 
-            // CDC §10.1 — le tier Gratuit est plafonné à `zones_limit` zones.
-            // Le Flutter affiche déjà le paywall, mais le serveur reste la source
-            // de vérité : sans ce garde-fou, un appel API direct contourne la limite.
+            // Le plafond ne concerne que le tier Gratuit. Solo et Famille
+            // peuvent créer plusieurs zones de sécurité.
             if (!$user->isPaidTier()) {
                 $maxZonesForFreeUser = (int) config('alertcontacts.free_tier.zones_limit', 1);
                 $currentZonesCount = SafeZone::where('owner_id', $user->id)

@@ -43,6 +43,13 @@ class IncidentResource extends JsonResource
             'affects_routing'  => (bool) $this->affects_routing,
             'status'           => $this->status,
             'expires_at'       => $this->expires_at?->toISOString(),
+            // Un incident isolé peut être classé `rejected` à son expiration
+            // (§4.10). Dans l'historique de son auteur, cela reste une
+            // expiration — à distinguer d'une suppression ou d'une résolution.
+            'expired_by_timeout' => $this->status === 'expired'
+                || (in_array($this->status, ['active', 'rejected'], true)
+                    && $this->expires_at?->isPast()
+                    && $this->resolved_at === null),
             'created_at'       => $this->created_at?->toISOString(),
 
             // Géométrie d'évitement — exposée uniquement quand elle fait autorité

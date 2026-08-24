@@ -68,7 +68,7 @@ class FirebaseNotificationService
     /**
      * Envoyer une notification d'entrée dans une zone de sécurité
      */
-    public function sendSafeZoneEntry(User $user, SafeZone $safeZone, User $assignedUser): bool
+    public function sendSafeZoneEntry(User $user, SafeZone $safeZone, User $assignedUser, int $eventId): bool
     {
         if (!$user->fcm_token) {
             Log::warning("Utilisateur {$user->id} n'a pas de token FCM");
@@ -84,6 +84,7 @@ class FirebaseNotificationService
             'zone_name'          => $safeZone->name,
             'assigned_user_id'   => $assignedUser->id,
             'assigned_user_name' => $assignedUser->name,
+            'safe_zone_event_id' => $eventId,
         ];
 
         return $this->sendNotification($user->fcm_token, $title, $body, $data, 'normal');
@@ -92,7 +93,7 @@ class FirebaseNotificationService
     /**
      * Envoyer une notification de sortie de zone de sécurité
      */
-    public function sendSafeZoneExit(User $user, SafeZone $safeZone, User $assignedUser): bool
+    public function sendSafeZoneExit(User $user, SafeZone $safeZone, User $assignedUser, int $eventId): bool
     {
         if (!$user->fcm_token) {
             Log::warning("Utilisateur {$user->id} n'a pas de token FCM");
@@ -108,6 +109,7 @@ class FirebaseNotificationService
             'zone_name' => $safeZone->name,
             'assigned_user_id' => $assignedUser->id,
             'assigned_user_name' => $assignedUser->name,
+            'safe_zone_event_id' => $eventId,
         ];
 
         return $this->sendNotification($user->fcm_token, $title, $body, $data, 'normal');
@@ -116,7 +118,7 @@ class FirebaseNotificationService
     /**
      * Envoyer un rappel de sortie de zone de sécurité
      */
-    public function sendSafeZoneExitReminder(User $user, SafeZone $safeZone, User $assignedUser, int $reminderCount): bool
+    public function sendSafeZoneExitReminder(User $user, SafeZone $safeZone, User $assignedUser, int $reminderCount, int $eventId): bool
     {
         if (!$user->fcm_token) {
             Log::warning("Utilisateur {$user->id} n'a pas de token FCM");
@@ -133,6 +135,7 @@ class FirebaseNotificationService
             'assigned_user_id' => $assignedUser->id,
             'assigned_user_name' => $assignedUser->name,
             'reminder_count' => $reminderCount,
+            'safe_zone_event_id' => $eventId,
             'action_buttons' => json_encode([
                 [
                     'id' => 'confirm_seen',
@@ -200,6 +203,31 @@ class FirebaseNotificationService
     }
 
     /**
+     * Informer un utilisateur qu'un proche a mis fin à leur relation.
+     */
+    public function sendRelationshipRemovalNotification(User $recipient, User $removedBy): bool
+    {
+        if (!$recipient->fcm_token) {
+            Log::warning("Utilisateur {$recipient->id} n'a pas de token FCM pour la notification de suppression de proche");
+            return false;
+        }
+
+        $removerName = trim((string) $removedBy->name) ?: 'Un utilisateur';
+
+        return $this->sendNotification(
+            $recipient->fcm_token,
+            'Mise à jour de vos proches',
+            "{$removerName} vous a retiré(e) de ses proches.",
+            [
+                'type' => 'relationship_removed',
+                'removed_by_id' => $removedBy->id,
+                'removed_by_name' => $removerName,
+            ],
+            'normal',
+        );
+    }
+
+    /**
      * Obtenir le nom d'affichage du niveau de partage
      */
     private function getShareLevelDisplayName(?string $shareLevel): string
@@ -219,7 +247,14 @@ class FirebaseNotificationService
     /**
      * Envoyer une notification générique
      */
-    private function sendNotification(string $token, string $title, string $body, array $data = [], string $priority = 'normal'): bool
+    /**
+     * Envoie un push FCM déjà qualifié par le code métier appelant.
+     *
+     * Cette méthode est publique car les jobs asynchrones d'incidents V4.1
+     * l'utilisent directement. Les notifications usuelles continuent d'être
+     * envoyées par les méthodes spécialisées de ce service.
+     */
+    public function sendNotification(string $token, string $title, string $body, array $data = [], string $priority = 'normal'): bool
     {
         // Vérifier si Firebase est configuré
         if (!$this->isConfigured()) {
@@ -240,6 +275,13 @@ class FirebaseNotificationService
             return false;
         }
 
+        // Les identifiants doivent correspondre aux canaux créés par Flutter.
+        $channelId = match ($data['type'] ?? null) {
+            'danger_zone_alert', 'community_alert', 'community_incident' => 'danger_zone_channel',
+            'safe_zone_entry', 'safe_zone_exit', 'safe_zone_exit_reminder' => 'safe_zone_channel',
+            default => $priority === 'high' ? 'critical_alert_channel' : 'status_update_channel',
+        };
+
         // Payload pour l'API FCM v1
         $payload = [
             'message' => [
@@ -252,8 +294,9 @@ class FirebaseNotificationService
                 'android' => [
                     'priority' => $priority === 'high' ? 'high' : 'normal',
                     'notification' => [
-                        'channel_id' => $priority === 'high' ? 'alerts' : 'notifications',
-                        'sound' => $priority === 'high' ? 'alert' : 'default',
+                        'channel_id' => $channelId,
+                        // Les sons personnalisés ne sont pas fournis par l'app.
+                        'sound' => 'default',
                         'vibrate_timings' => $priority === 'high' ? ['0.2s', '0.1s', '0.2s'] : ['0.1s'],
                     ],
                 ],

@@ -57,6 +57,21 @@ class ZoneController extends Controller
             return response()->json(['status' => 'error', 'errors' => $v->errors()], 422);
         }
 
+        $user = Auth::user();
+        $freeZonesLimit = (int) config('alertcontacts.free_tier.zones_limit', 1);
+
+        // Les offres Solo et Famille ne sont pas plafonnées sur le nombre de
+        // zones. Le contrôle reste côté serveur pour les appels directs.
+        if (!$user->isPaidTier() && SafeZone::where('owner_id', $user->id)
+            ->where('is_active', true)
+            ->count() >= $freeZonesLimit) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 'SUBSCRIPTION_LIMIT_REACHED',
+                'message' => "Vous avez atteint la limite de zones en mode gratuit ($freeZonesLimit zone maximum).",
+            ], 403);
+        }
+
         $zone = SafeZone::create([
             'owner_id' => Auth::id(),
             'name'     => $v->validated()['name'],

@@ -10,6 +10,7 @@ use App\Services\NotificationService;
 use App\Services\CooldownService;
 use App\Services\ActivityLogService;
 use App\Services\IgnoredDangerZoneService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -20,6 +21,10 @@ use Illuminate\Support\Facades\Log;
  */
 class GeoprocessingService
 {
+    private const SAFE_ZONE_MIN_BOUNDARY_MARGIN_METERS = 30.0;
+    private const SAFE_ZONE_MAX_BOUNDARY_MARGIN_METERS = 200.0;
+    private const SAFE_ZONE_TRANSITION_DEBOUNCE_SECONDS = 120;
+    private const SAFE_ZONE_NOTIFICATION_COOLDOWN_SECONDS = 300;
     public function __construct(
         private NotificationService $notificationService,
         private CooldownService $cooldownService,
@@ -199,7 +204,6 @@ class GeoprocessingService
                 'safe_zone_id' => $zone->id
             ]);
 
-            $isInside = $this->isUserInSafeZone($location, $zone);
             $distance = null;
 
             if ($zone->isCircle()) {
@@ -211,16 +215,25 @@ class GeoprocessingService
                 );
             }
 
-            // Machine à états : ne déclencher que sur une transition réelle inside↔outside
+            // Machine à états : une transition doit être stable dans le temps et
+            // dépasser une marge liée à la précision GPS, afin d'éviter le ping-pong
+            // sur la frontière d'une zone.
             $lastEvent = SafeZoneEvent::where('user_id', $location->user_id)
                 ->where('safe_zone_id', $zone->id)
                 ->latest('captured_at_device')
                 ->first();
 
-            // Pas d'événement précédent → on suppose que l'utilisateur était dedans (évite le faux exit au 1er point)
+            // Pas d'événement précédent : le premier point vraiment loin de la zone
+            // reste une sortie utile à signaler (ex. app lancée après le déplacement).
             $wasInside = $lastEvent ? ($lastEvent->event_type === 'entry') : true;
 
+            $isInside = $this->isInsideForState($location, $zone, $distance, $wasInside);
+
             if (!$isInside && $wasInside) {
+                if ($this->isTransitionDebounced($lastEvent, $location)) {
+                    $this->logDebouncedTransition($location, $zone, $lastEvent);
+                    continue;
+                }
                 // Transition dedans → dehors = SORTIE
                 Log::info('Safe zone transition: entry → exit', [
                     'user_id' => $location->user_id,
@@ -230,6 +243,10 @@ class GeoprocessingService
                 $this->handleSafeZoneExit($location, $zone, $distance);
 
             } elseif ($isInside && !$wasInside) {
+                if ($this->isTransitionDebounced($lastEvent, $location)) {
+                    $this->logDebouncedTransition($location, $zone, $lastEvent);
+                    continue;
+                }
                 // Transition dehors → dedans = ENTRÉE
                 Log::info('Safe zone transition: exit → entry', [
                     'user_id' => $location->user_id,
@@ -330,6 +347,9 @@ class GeoprocessingService
 
         // Enregistrer l'événement de sortie de la zone de sécurité
         $safeZoneEvent = $this->recordSafeZoneEvent($location, $zone, 'exit', $distance);
+        if (!$safeZoneEvent) {
+            return;
+        }
 
         // Enregistrer l'activité de sortie de la zone de sécurité
         $this->activityLogService->logExitSafeZone($location->user_id, $zone->id, [
@@ -347,12 +367,22 @@ class GeoprocessingService
 
         if ($assignment && $assignment->notify_exit) {
             // Créer une alerte en attente pour les rappels périodiques si l'événement a été créé avec succès
-            if ($safeZoneEvent) {
-                $this->createPendingSafeZoneAlert($location->user_id, $zone->id, $safeZoneEvent->id);
+            $this->createPendingSafeZoneAlert($location->user_id, $zone->id, $safeZoneEvent->id);
+
+            if ($this->isNotificationInCooldown($location->user_id, $zone->id, 'exit', $safeZoneEvent)) {
+                Log::info('Safe zone exit notification skipped due to cooldown', [
+                    'user_id' => $location->user_id,
+                    'zone_id' => $zone->id,
+                    'event_id' => $safeZoneEvent->id,
+                ]);
+                return;
             }
 
             // Notifier les proches assignés à cette zone - SYSTÉMATIQUEMENT à chaque détection
-            $this->notificationService->sendSafeZoneExitAlert($location->user_id, $zone);
+            $sent = $this->notificationService->sendSafeZoneExitAlert($location->user_id, $zone, $safeZoneEvent);
+            if ($sent) {
+                $safeZoneEvent->markNotificationSent();
+            }
 
             Log::info('Safe zone exit notification sent (no cooldown)', [
                 'user_id' => $location->user_id,
@@ -385,7 +415,10 @@ class GeoprocessingService
         ]);
 
         // Enregistrer l'événement d'entrée
-        $this->recordSafeZoneEvent($location, $zone, 'entry', $distance);
+        $safeZoneEvent = $this->recordSafeZoneEvent($location, $zone, 'entry', $distance);
+        if (!$safeZoneEvent) {
+            return;
+        }
 
         // Auto-confirmer l'alerte en attente si l'utilisateur revient dans la zone
         \App\Models\PendingSafeZoneAlert::where('user_id', $location->user_id)
@@ -411,8 +444,73 @@ class GeoprocessingService
             ->first();
 
         if ($assignment && $assignment->notify_entry) {
-            $this->notificationService->sendSafeZoneEntryAlert($location->user_id, $zone);
+            if ($this->isNotificationInCooldown($location->user_id, $zone->id, 'entry', $safeZoneEvent)) {
+                Log::info('Safe zone entry notification skipped due to cooldown', [
+                    'user_id' => $location->user_id,
+                    'zone_id' => $zone->id,
+                    'event_id' => $safeZoneEvent->id,
+                ]);
+                return;
+            }
+            if ($this->notificationService->sendSafeZoneEntryAlert($location->user_id, $zone, $safeZoneEvent)) {
+                $safeZoneEvent->markNotificationSent();
+            }
         }
+    }
+
+    private function isInsideForState(UserLocation $location, SafeZone $zone, ?float $distance, bool $wasInside): bool
+    {
+        if (!$zone->isCircle()) {
+            return $this->isUserInSafeZone($location, $zone);
+        }
+
+        $margin = min(
+            self::SAFE_ZONE_MAX_BOUNDARY_MARGIN_METERS,
+            max(self::SAFE_ZONE_MIN_BOUNDARY_MARGIN_METERS, (float) ($location->accuracy ?? 0)),
+        );
+
+        return $wasInside
+            ? $distance <= $zone->radius_m + $margin
+            : $distance < max(0, $zone->radius_m - $margin);
+    }
+
+    private function isTransitionDebounced(?SafeZoneEvent $lastEvent, UserLocation $location): bool
+    {
+        if (!$lastEvent) {
+            return false;
+        }
+
+        $lastAt = $lastEvent->captured_at_device ?? $lastEvent->created_at;
+        $currentAt = $location->captured_at_device ?? now();
+        return abs($currentAt->diffInSeconds($lastAt, false)) < self::SAFE_ZONE_TRANSITION_DEBOUNCE_SECONDS;
+    }
+
+    private function logDebouncedTransition(UserLocation $location, SafeZone $zone, ?SafeZoneEvent $lastEvent): void
+    {
+        Log::info('Safe zone transition ignored during debounce window', [
+            'user_id' => $location->user_id,
+            'safe_zone_id' => $zone->id,
+            'last_event' => $lastEvent?->event_type,
+        ]);
+    }
+
+    private function isNotificationInCooldown(int $userId, int $zoneId, string $eventType, SafeZoneEvent $event): bool
+    {
+        $previous = SafeZoneEvent::where('user_id', $userId)
+            ->where('safe_zone_id', $zoneId)
+            ->where('event_type', $eventType)
+            ->where('id', '!=', $event->id)
+            ->where('notification_sent', true)
+            ->latest('captured_at_device')
+            ->first();
+
+        if (!$previous) {
+            return false;
+        }
+
+        $previousAt = $previous->captured_at_device ?? $previous->created_at;
+        $eventAt = $event->captured_at_device ?? $event->created_at;
+        return abs($eventAt->diffInSeconds($previousAt, false)) < self::SAFE_ZONE_NOTIFICATION_COOLDOWN_SECONDS;
     }
 
     /**
@@ -529,30 +627,25 @@ class GeoprocessingService
     private function createPendingSafeZoneAlert(int $userId, int $safeZoneId, int $safeZoneEventId): void
     {
         try {
-            // Vérifier s'il existe déjà une alerte non confirmée pour cette zone et cet utilisateur
-            $existingAlert = \App\Models\PendingSafeZoneAlert::where('user_id', $userId)
-                ->where('safe_zone_id', $safeZoneId)
-                ->where('confirmed', false)
-                ->first();
+            $alert = DB::transaction(function () use ($userId, $safeZoneId, $safeZoneEventId) {
+                // Serialize creation per zone. This prevents two concurrent location
+                // jobs from creating two active reminder chains for the same person.
+                SafeZone::whereKey($safeZoneId)->lockForUpdate()->firstOrFail();
 
-            if ($existingAlert) {
-                Log::info('Pending alert already exists for user and safe zone', [
+                $existing = \App\Models\PendingSafeZoneAlert::where('user_id', $userId)
+                    ->where('safe_zone_id', $safeZoneId)
+                    ->where('confirmed', false)
+                    ->first();
+
+                return $existing ?? \App\Models\PendingSafeZoneAlert::create([
                     'user_id' => $userId,
                     'safe_zone_id' => $safeZoneId,
-                    'existing_alert_id' => $existingAlert->id
+                    'safe_zone_event_id' => $safeZoneEventId,
+                    'first_alert_sent_at' => now(),
+                    'reminder_count' => 0,
+                    'confirmed' => false,
                 ]);
-                return;
-            }
-
-            // Créer une nouvelle alerte en attente
-            \App\Models\PendingSafeZoneAlert::create([
-                'user_id' => $userId,
-                'safe_zone_id' => $safeZoneId,
-                'safe_zone_event_id' => $safeZoneEventId,
-                'first_alert_sent_at' => now(),
-                'reminder_count' => 0,
-                'confirmed' => false,
-            ]);
+            }, 3);
 
             Log::info('Pending safe zone alert created', [
                 'user_id' => $userId,

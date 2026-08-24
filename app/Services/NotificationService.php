@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DangerZone;
 use App\Models\SafeZone;
+use App\Models\SafeZoneEvent;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
@@ -86,7 +87,7 @@ class NotificationService
      * UC-N3: Envoyer une notification de sortie de zone de sécurité
      * Nouvelle logique : pas de cooldown (selon les nouvelles spécifications)
      */
-    public function sendSafeZoneExit(int $contactId, SafeZone $zone, User $assignedUser): bool
+    public function sendSafeZoneExit(int $contactId, SafeZone $zone, User $assignedUser, SafeZoneEvent $event): bool
     {
         try {
             $contact = User::find($contactId);
@@ -108,7 +109,7 @@ class NotificationService
             }
 
             // Envoyer la notification via Firebase
-            $success = $this->firebaseService->sendSafeZoneExit($contact, $zone, $assignedUser);
+            $success = $this->firebaseService->sendSafeZoneExit($contact, $zone, $assignedUser, $event->id);
             
             if ($success) {
                 Log::info('Safe zone exit notification sent', [
@@ -187,7 +188,7 @@ class NotificationService
     /**
      * UC-N5: Envoyer une notification d'entrée dans une zone de sécurité au créateur de la zone
      */
-    public function sendSafeZoneEntryAlert(int $userId, SafeZone $zone): bool
+    public function sendSafeZoneEntryAlert(int $userId, SafeZone $zone, SafeZoneEvent $event): bool
     {
         try {
             $user = User::find($userId);
@@ -222,7 +223,7 @@ class NotificationService
                 return false;
             }
 
-            $success = $this->firebaseService->sendSafeZoneEntry($zoneOwner, $zone, $user);
+            $success = $this->firebaseService->sendSafeZoneEntry($zoneOwner, $zone, $user, $event->id);
 
             if ($success) {
                 Log::info('Safe zone entry alert sent to zone owner', [
@@ -248,7 +249,7 @@ class NotificationService
     /**
      * UC-N6: Envoyer des notifications de sortie de zone de sécurité au créateur de la zone
      */
-    public function sendSafeZoneExitAlert(int $userId, SafeZone $zone): bool
+    public function sendSafeZoneExitAlert(int $userId, SafeZone $zone, SafeZoneEvent $event): bool
     {
         try {
             $user = User::find($userId);
@@ -282,7 +283,7 @@ class NotificationService
             }
 
             // Envoyer la notification au créateur de la zone
-            $success = $this->sendSafeZoneExit($zoneOwner->id, $zone, $user);
+            $success = $this->sendSafeZoneExit($zoneOwner->id, $zone, $user, $event);
 
             if ($success) {
                 Log::info('Safe zone exit alert sent to zone owner', [
@@ -309,7 +310,7 @@ class NotificationService
     /**
      * UC-N7: Envoyer un rappel de sortie de zone de sécurité au créateur de la zone
      */
-    public function sendSafeZoneExitReminder(int $userId, SafeZone $zone, int $reminderCount): bool
+    public function sendSafeZoneExitReminder(int $userId, SafeZone $zone, int $reminderCount, int $eventId): bool
     {
         try {
             $user = User::find($userId);
@@ -356,7 +357,7 @@ class NotificationService
             }
 
             // Envoyer le rappel au créateur de la zone via Firebase
-            $success = $this->firebaseService->sendSafeZoneExitReminder($zoneOwner, $zone, $user, $reminderCount);
+            $success = $this->firebaseService->sendSafeZoneExitReminder($zoneOwner, $zone, $user, $reminderCount, $eventId);
             
             if ($success) {
                 Log::info('Safe zone exit reminder sent to zone owner', [
