@@ -192,25 +192,3 @@ Schedule::command('cleanup:old-data --stats')
     ->onFailure(function () use ($logScheduleEvent) {
         $logScheduleEvent('cleanup:stats', 'FAILED');
     });
- 
-/**
- * 🔄 REDÉMARRAGE AUTOMATIQUE DES WORKERS DE FILE D'ATTENTE
- *
- * Planification du redémarrage des workers pour maintenir leur santé
- * et éviter les problèmes de mémoire ou de blocage.
- * S'exécute toutes les 5 minutes pour garantir une disponibilité optimale.
- */
-Schedule::command('jobs:restart-workers')
-    ->everyFiveMinutes()
-    ->withoutOverlapping(10) // Empêche l'exécution simultanée, timeout de 10 minutes
-    ->appendOutputTo(storage_path('logs/workers-restart.log'))
-    ->description('Redémarre automatiquement tous les workers de file d\'attente')
-    ->before(function () use ($logScheduleEvent) {
-        $logScheduleEvent('jobs:restart-workers', 'STARTED');
-    })
-    ->after(function () use ($logScheduleEvent) {
-        $logScheduleEvent('jobs:restart-workers', 'COMPLETED');
-    })
-    ->onFailure(function () use ($logScheduleEvent) {
-        $logScheduleEvent('jobs:restart-workers', 'FAILED');
-    });
