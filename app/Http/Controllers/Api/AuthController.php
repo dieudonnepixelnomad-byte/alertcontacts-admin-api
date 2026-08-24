@@ -132,6 +132,8 @@ class AuthController extends Controller
                         'phone_number' => $user->phone_number,
                         'email_verified_at' => $user->email_verified_at,
                         'tier' => $user->tier ?? 'free',
+                        'is_admin' => $user->isAdmin(),
+                        'has_premium_access' => $user->hasPremiumAccess(),
                     ],
                     'token' => $token,
                     'account_created' => $accountCreated,
@@ -284,6 +286,8 @@ class AuthController extends Controller
                 // Le client en a besoin pour appliquer la fenêtre d'historique
                 // des alertes (CDC §10.1 — 24 h en Gratuit, 30 j en Solo/Famille)
                 'tier' => $user->tier ?? 'free',
+                'is_admin' => $user->isAdmin(),
+                'has_premium_access' => $user->hasPremiumAccess(),
             ]
         ]);
     }

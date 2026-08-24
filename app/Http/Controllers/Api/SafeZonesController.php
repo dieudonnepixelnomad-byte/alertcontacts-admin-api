@@ -181,7 +181,7 @@ class SafeZonesController extends Controller
 
             // Le plafond ne concerne que le tier Gratuit. Solo et Famille
             // peuvent créer plusieurs zones de sécurité.
-            if (!$user->isPaidTier()) {
+            if (!$user->hasPremiumAccess()) {
                 $maxZonesForFreeUser = (int) config('alertcontacts.free_tier.zones_limit', 1);
                 $currentZonesCount = SafeZone::where('owner_id', $user->id)
                     ->where('is_active', true)

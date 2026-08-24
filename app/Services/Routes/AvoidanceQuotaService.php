@@ -33,7 +33,7 @@ class AvoidanceQuotaService
         $limit = (int) config('alertcontacts.free_tier.avoidances_per_month', 3);
 
         // Tiers payants : illimité
-        if (($user->tier ?? 'free') === 'premium') {
+        if ($user->hasPremiumAccess()) {
             return ['allowed' => true, 'used' => 0, 'limit' => 0, 'reason' => null];
         }
 

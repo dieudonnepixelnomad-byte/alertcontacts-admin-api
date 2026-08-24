@@ -461,9 +461,9 @@ class RelationshipController extends Controller
             ->where('is_active', true)
             ->count();
 
-        // Pour l'instant, on considère tous les utilisateurs comme gratuits (limite: 1 proche par zone)
-        // TODO: Implémenter un vrai système d'abonnement avec vérification Premium
-        $isUserPremium = false; // À remplacer par une vraie vérification d'abonnement
+        // Le serveur est la source d'autorité : abonnement actif ou exemption
+        // administrateur. Le client ne décide jamais de cette limite.
+        $isUserPremium = $user->hasPremiumAccess();
         $maxContactsPerZone = $isUserPremium ? PHP_INT_MAX : 1;
 
         if ($currentAssignedCount >= $maxContactsPerZone) {

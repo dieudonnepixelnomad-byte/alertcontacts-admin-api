@@ -146,13 +146,24 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Accès aux fonctionnalités Premium, quel que soit son origine.
+     *
+     * Un administrateur ne devient pas abonné : son exemption est un rôle
+     * serveur distinct, utilisé uniquement pour les autorisations produit.
+     */
+    public function hasPremiumAccess(): bool
+    {
+        return $this->isAdmin() || $this->isPaidTier();
+    }
+
+    /**
      * Le plafond de proches est une règle de serveur : l'interface mobile ne
      * doit jamais être la seule barrière, car un lien d'invitation peut être
      * utilisé hors de l'application de l'inviteur.
      */
     public function hasReachedContactsLimit(): bool
     {
-        if ($this->isPaidTier()) {
+        if ($this->hasPremiumAccess()) {
             return false;
         }
 

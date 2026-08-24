@@ -68,6 +68,15 @@ class UserForm
                         ->required(fn (string $context): bool => $context === 'create'),
                 ]),
 
+            Section::make('Accès produit')
+                ->description('Un administrateur accède aux fonctionnalités Premium sans créer d’abonnement ni achat.')
+                ->schema([
+                    Toggle::make('is_admin')
+                        ->label('Accès administrateur')
+                        ->helperText('Cette exemption est vérifiée par le serveur pour toutes les fonctionnalités Premium.')
+                        ->default(false),
+                ]),
+
             Section::make('Notifications')
                 ->schema([
                     TextInput::make('fcm_token')

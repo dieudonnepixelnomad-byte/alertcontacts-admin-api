@@ -24,6 +24,8 @@ class SubscriptionController extends Controller
         return response()->json([
             'status' => 'ok',
             'tier' => Auth::user()->tier ?? 'free',
+            'has_premium_access' => Auth::user()->hasPremiumAccess(),
+            'access_source' => Auth::user()->isAdmin() ? 'admin' : (Auth::user()->isPaidTier() ? 'subscription' : 'free'),
             'data' => $sub ? [
                 'tier' => $sub->tier,
                 'billing_cycle' => $sub->billing_cycle,

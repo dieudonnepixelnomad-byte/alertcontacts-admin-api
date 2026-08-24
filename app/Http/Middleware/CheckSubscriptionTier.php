@@ -12,7 +12,7 @@ class CheckSubscriptionTier
     {
         $user = $request->user();
 
-        if (!$user || !in_array($user->tier ?? 'free', $tiers)) {
+        if (!$user || (!$user->hasPremiumAccess() && !in_array($user->tier ?? 'free', $tiers))) {
             return response()->json([
                 'status'         => 'error',
                 'message'        => 'Abonnement requis',

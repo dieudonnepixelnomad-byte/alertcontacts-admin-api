@@ -72,7 +72,7 @@ class CheckActiveRoutesAgainstIncidentJob implements ShouldQueue
             }
 
             // §10.2 — la surveillance en trajet est une feature Solo/Famille
-            if (!in_array($route->user?->tier ?? 'free', $monitoringTiers, true)) {
+            if (!$route->user || (!$route->user->hasPremiumAccess() && !in_array($route->user->tier ?? 'free', $monitoringTiers, true))) {
                 continue;
             }
 

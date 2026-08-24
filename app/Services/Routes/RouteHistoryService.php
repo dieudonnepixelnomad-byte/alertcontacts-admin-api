@@ -72,7 +72,7 @@ class RouteHistoryService
      */
     public function forUser(User $user): Collection
     {
-        $hours = ($user->tier ?? 'free') === 'premium'
+        $hours = $user->hasPremiumAccess()
             ? (int) config('alertcontacts.routes.history_hours_paid', 720)
             : (int) config('alertcontacts.free_tier.route_history_hours', 24);
 

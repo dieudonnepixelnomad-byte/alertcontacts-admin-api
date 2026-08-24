@@ -62,7 +62,7 @@ class ZoneController extends Controller
 
         // Les offres Solo et Famille ne sont pas plafonnées sur le nombre de
         // zones. Le contrôle reste côté serveur pour les appels directs.
-        if (!$user->isPaidTier() && SafeZone::where('owner_id', $user->id)
+        if (!$user->hasPremiumAccess() && SafeZone::where('owner_id', $user->id)
             ->where('is_active', true)
             ->count() >= $freeZonesLimit) {
             return response()->json([
