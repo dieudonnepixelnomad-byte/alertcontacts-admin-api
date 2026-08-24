@@ -8,8 +8,6 @@ use App\Models\Feedback;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 
 class FeedbackController extends Controller
 {
@@ -41,40 +39,17 @@ class FeedbackController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(Request $request)
+    public function store(StoreFeedbackRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'category' => 'required|string|in:feature,bug,compliment,complaint,other',
-            'subject' => 'required|string|max:255',
-            'message' => 'required|string|min:20',
-            'app_version' => 'nullable|string|max:50',
-            'os_version' => 'nullable|string|max:50',
+        $feedback = Feedback::create([
+            ...$request->validated(),
+            'user_id' => Auth::id(),
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $user = Auth::user();
-
-        try {
-            Feedback::create([
-                'user_id' => $user->id,
-                'category' => $request->input('category'),
-                'subject' => $request->input('subject'),
-                'message' => $request->input('message'),
-                'app_version' => $request->input('app_version'),
-                'os_version' => $request->input('os_version'),
-            ]);
-
-            return response()->json(['message' => 'Feedback submitted successfully.'], 201);
-
-        } catch (\Exception $e) {
-            // Log the error for debugging
-            Log::error('Feedback submission failed: ' . $e->getMessage());
-
-            return response()->json(['message' => 'An error occurred while submitting feedback.'], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $feedback,
+        ], 201);
     }
 
     /**

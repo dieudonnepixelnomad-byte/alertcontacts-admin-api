@@ -49,8 +49,8 @@ class FeedbackTable
                     ->label('Statut')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'new' => 'info',
-                        'in_progress' => 'warning',
+                        'pending' => 'info',
+                        'reviewed' => 'warning',
                         'resolved' => 'success',
                         'closed' => 'gray',
                     })
