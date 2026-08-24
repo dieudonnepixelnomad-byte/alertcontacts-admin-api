@@ -43,6 +43,8 @@ return [
 
     'revenuecat' => [
         'webhook_secret' => env('REVENUECAT_WEBHOOK_SECRET'),
+        'secret_api_key' => env('REVENUECAT_SECRET_API_KEY'),
+        'entitlement_id' => env('REVENUECAT_ENTITLEMENT_ID', 'premium'),
         'products' => [
             env('REVENUECAT_PREMIUM_MONTHLY_PRODUCT_ID', 'premium_monthly'),
             env('REVENUECAT_PREMIUM_ANNUAL_PRODUCT_ID', 'premium_annual'),

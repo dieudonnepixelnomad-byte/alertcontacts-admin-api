@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\SubscriptionAuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -46,10 +47,12 @@ class RevenueCatWebhookController extends Controller
         } catch (QueryException $e) {
             // Duplicate event: webhook delivery is at-least-once, so this is OK.
             if (str_contains(strtolower($e->getMessage()), 'unique')) {
+                $this->audit(null, $event, 'duplicate');
                 return response()->json(['status' => 'ok', 'duplicate' => true]);
             }
             throw $e;
         } catch (\Throwable $e) {
+            $this->audit(null, $event, 'error', ['error' => $e->getMessage()]);
             Log::error('RevenueCat webhook error', ['error' => $e->getMessage(), 'event' => $event['type']]);
             return response()->json(['status' => 'error'], 500);
         }
@@ -64,24 +67,34 @@ class RevenueCatWebhookController extends Controller
 
         if (! $user) {
             Log::warning('RevenueCat webhook: unknown user', ['firebase_uid' => $firebaseUid]);
+            $this->audit(null, $event, 'ignored', ['reason' => 'unknown_user']);
             return;
         }
 
         $type      = $event['type'];
         $productId = $event['product_id'] ?? '';
+        $previousTier = $user->tier ?? 'free';
 
+        $processed = false;
         if (in_array($type, self::PURCHASE_EVENTS)) {
-            $this->activateSubscription($user, $event, $productId);
+            $processed = $this->activateSubscription($user, $event, $productId);
         } elseif (in_array($type, self::EXPIRY_EVENTS)) {
             $this->expireSubscription($user);
+            $processed = true;
         } elseif (in_array($type, self::CANCEL_EVENTS)) {
             $this->cancelSubscription($user, $event);
+            $processed = true;
         } elseif ($type === 'PRODUCT_CHANGE') {
-            $this->activateSubscription($user, $event, $event['new_product_id'] ?? $productId);
+            $processed = $this->activateSubscription($user, $event, $event['new_product_id'] ?? $productId);
+        } else {
+            $this->audit($user, $event, 'ignored', ['reason' => 'unsupported_event'], $previousTier);
+            return;
         }
+
+        if ($processed) $this->audit($user, $event, 'processed', [], $previousTier);
     }
 
-    private function activateSubscription(User $user, array $event, string $productId): void
+    private function activateSubscription(User $user, array $event, string $productId): bool
     {
         $tier = $this->tierFromProductId($productId);
         if (! $tier) {
@@ -89,7 +102,8 @@ class RevenueCatWebhookController extends Controller
                 'product_id' => $productId,
                 'event_type' => $event['type'],
             ]);
-            return;
+            $this->audit($user, $event, 'ignored', ['reason' => 'unsupported_product']);
+            return false;
         }
 
         $isTrialing      = $event['type'] === 'TRIAL_STARTED';
@@ -120,6 +134,7 @@ class RevenueCatWebhookController extends Controller
         );
 
         $user->update(['tier' => $tier]);
+        return true;
     }
 
     private function cancelSubscription(User $user, array $event): void
@@ -165,5 +180,26 @@ class RevenueCatWebhookController extends Controller
         if (! $secret) return ! app()->environment('production');
 
         return hash_equals($secret, (string) $request->header('Authorization'));
+    }
+
+    /** Journal immuable destiné au support : il conserve le contexte utile,
+     * jamais le payload complet RevenueCat qui peut contenir des données inutiles. */
+    private function audit(?User $user, array $event, string $outcome, array $details = [], ?string $previousTier = null): void
+    {
+        SubscriptionAuditLog::create([
+            'user_id' => $user?->id,
+            'revenuecat_event_id' => $event['id'] ?? null,
+            'event_type' => $event['type'] ?? 'unknown',
+            'outcome' => $outcome,
+            'product_id' => $event['new_product_id'] ?? $event['product_id'] ?? null,
+            'external_subscription_id' => $event['original_transaction_id'] ?? $event['transaction_id'] ?? null,
+            'previous_tier' => $previousTier,
+            'resulting_tier' => $user?->fresh()?->tier,
+            'payload_hash' => hash('sha256', json_encode($event, JSON_THROW_ON_ERROR)),
+            'details' => $details,
+            'occurred_at' => isset($event['event_timestamp_ms'])
+                ? now()->setTimestamp((int) floor(((int) $event['event_timestamp_ms']) / 1000))
+                : now(),
+        ]);
     }
 }
