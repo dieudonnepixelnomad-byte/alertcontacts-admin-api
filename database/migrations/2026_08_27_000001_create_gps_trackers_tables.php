@@ -61,7 +61,10 @@ return new class extends Migration {
             $table->timestamp('occurred_at');
             $table->boolean('notification_sent')->default(false);
             $table->timestamps();
-            $table->index(['tracker_id', 'safe_zone_id', 'occurred_at']);
+            $table->index(
+                ['tracker_id', 'safe_zone_id', 'occurred_at'],
+                'tracker_zone_event_lookup_idx',
+            );
         });
     }
 
