@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\ZoneController;
 use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\RevenueCatWebhookController;
+use App\Http\Controllers\Api\GpsTrackerController;
+use App\Http\Controllers\Api\InternalTrackerTelemetryController;
 use App\Http\Controllers\Api\Admin\AppSettingsController as AdminAppSettingsController;
 // API v1 — CDC V4.1 (incidents communautaires & trajets)
 use App\Http\Controllers\Api\V1\IncidentController as V1IncidentController;
@@ -31,6 +33,7 @@ Route::get('/app-status', AppStatusController::class);
 
 // Webhook RevenueCat — public, pas de Sanctum (appelé par RevenueCat serveurs)
 Route::post('/webhooks/revenuecat', [RevenueCatWebhookController::class, 'handle']);
+Route::post('/internal/tracker-telemetry', [InternalTrackerTelemetryController::class, 'store']);
 
 // Routes d'authentification (publiques)
 Route::prefix('auth')->group(function () {
@@ -120,6 +123,18 @@ Route::middleware(['auth:sanctum', 'minimum-app-version'])->group(function () {
 
     // V4 — Abonnements
     Route::get('/subscriptions', [SubscriptionController::class, 'index']);
+
+    Route::prefix('gps-trackers')->middleware('tier:premium')->group(function () {
+        Route::get('/', [GpsTrackerController::class, 'index']);
+        Route::post('/', [GpsTrackerController::class, 'store']);
+        Route::get('/{tracker}/locations', [GpsTrackerController::class, 'locations']);
+        Route::get('/{tracker}/zones', [GpsTrackerController::class, 'zones']);
+        Route::put('/{tracker}/zones', [GpsTrackerController::class, 'syncZones']);
+        Route::post('/{tracker}/activate', [GpsTrackerController::class, 'activate']);
+        Route::post('/{tracker}/deactivate', [GpsTrackerController::class, 'deactivate']);
+        Route::put('/{tracker}', [GpsTrackerController::class, 'update']);
+        Route::delete('/{tracker}', [GpsTrackerController::class, 'destroy']);
+    });
 
     // V4 — Mode invisible (CDC §10.1 — réservé aux tiers payants)
     Route::post('/location/pause', [LocationController::class, 'pause'])

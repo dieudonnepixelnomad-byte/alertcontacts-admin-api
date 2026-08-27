@@ -2,6 +2,10 @@
 
 return [
 
+    'trackers' => [
+        'ingest_secret' => env('TRACKER_INGEST_SECRET'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

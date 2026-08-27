@@ -126,6 +126,10 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->hasMany(Relationship::class, 'user_id')->where('status', 'accepted');
     }
+    public function gpsTrackers()
+    {
+        return $this->hasMany(GpsTracker::class, 'owner_id');
+    }
     public function relatedToMe()
     {
         return $this->hasMany(Relationship::class, 'contact_id')->where('status', 'accepted');
