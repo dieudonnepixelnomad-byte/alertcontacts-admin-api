@@ -128,7 +128,8 @@ Route::middleware(['auth:sanctum', 'minimum-app-version'])->group(function () {
     Route::prefix('gps-trackers')->group(function () {
         Route::get('/', [GpsTrackerController::class, 'index']);
         Route::post('/', [GpsTrackerController::class, 'store']);
-        Route::post('/{tracker}/activate', [GpsTrackerController::class, 'activate']);
+        Route::post('/{tracker}/activate', [GpsTrackerController::class, 'activate'])
+            ->middleware('tier:premium');
         Route::post('/{tracker}/deactivate', [GpsTrackerController::class, 'deactivate']);
         Route::put('/{tracker}', [GpsTrackerController::class, 'update']);
         Route::delete('/{tracker}', [GpsTrackerController::class, 'destroy']);

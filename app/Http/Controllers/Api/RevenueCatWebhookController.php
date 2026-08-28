@@ -166,6 +166,7 @@ class RevenueCatWebhookController extends Controller
             ->update(['status' => 'expired', 'updated_at' => now()]);
 
         $user->update(['tier' => 'free']);
+        $user->gpsTrackers()->where('status', 'active')->update(['status' => 'suspended']);
     }
 
     private function tierFromProductId(string $productId): ?string

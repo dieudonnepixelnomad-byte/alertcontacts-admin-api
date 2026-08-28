@@ -57,6 +57,7 @@ class GpsTrackerController extends Controller
     public function activate(GpsTracker $tracker): JsonResponse
     {
         $this->owned($tracker);
+        abort_unless(Auth::user()->hasPremiumAccess(), 403, 'Un abonnement Premium est requis pour activer le suivi GPS.');
         if (!$tracker->external_identifier) return response()->json(['message'=>'Un identifiant matériel est requis pour activer ce traceur.'], 422);
         $tracker->update(['status'=>'active']);
         return response()->json(['data'=>$this->present($tracker->fresh())]);
@@ -98,7 +99,7 @@ class GpsTrackerController extends Controller
         return [
             'is_premium' => $isPremium,
             'tracker_limit' => $isPremium ? null : 1,
-            'location_interval_hours' => $isPremium ? 0 : (int) config('services.trackers.free_location_interval_hours', 6),
+            'location_interval_hours' => $isPremium ? 0 : null,
             'realtime_location' => $isPremium,
             'location_history' => $isPremium,
             'safe_zones' => $isPremium,

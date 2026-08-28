@@ -20,9 +20,9 @@ class InternalTrackerTelemetryController extends Controller
         abort_if($tracker->status !== 'active', 403);
 
         $isPremium = $tracker->owner->hasPremiumAccess();
-        $freeIntervalHours = (int) config('services.trackers.free_location_interval_hours', 6);
-        if (!$isPremium && $tracker->last_position_at?->gt(now()->subHours($freeIntervalHours))) {
-            return response()->json(['status' => 'accepted_limited'], 202);
+        if (!$isPremium) {
+            $tracker->update(['status' => 'suspended']);
+            return response()->json(['status' => 'premium_required'], 403);
         }
 
         $location = TrackerLocation::create($data + ['tracker_id'=>$tracker->id, 'received_at'=>now(), 'source'=>$data['provider']]);
