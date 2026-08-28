@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\GpsTracker;
 use App\Models\SafeZone;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,13 +14,33 @@ class GpsTrackerController extends Controller
 {
     public function index(): JsonResponse
     {
-        return response()->json(['data' => Auth::user()->gpsTrackers()->with('locations')->get()->map(fn ($t) => $this->present($t))]);
+        return response()->json([
+            'data' => Auth::user()
+                ->gpsTrackers()
+                ->latest()
+                ->get()
+                ->map(fn (GpsTracker $tracker) => $this->present($tracker)),
+            'capabilities' => $this->capabilities(),
+        ]);
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate(['name'=>'required|string|max:100','provider'=>'nullable|string|max:50','model'=>'nullable|string|max:100','external_identifier'=>'nullable|string|max:191']);
-        $tracker = Auth::user()->gpsTrackers()->create($data + ['status' => 'draft']);
+        $tracker = DB::transaction(function () use ($data) {
+            $owner = User::query()->lockForUpdate()->findOrFail(Auth::id());
+            if (!$owner->hasPremiumAccess() && $owner->gpsTrackers()->count() >= 1) {
+                abort(response()->json([
+                    'status' => 'error',
+                    'code' => 'GPS_TRACKER_FREE_LIMIT_REACHED',
+                    'message' => 'L’offre gratuite est limitée à un traceur GPS.',
+                    'upgrade_url' => '/api/subscriptions',
+                ], 403));
+            }
+
+            return $owner->gpsTrackers()->create($data + ['status' => 'draft']);
+        });
+
         return response()->json(['data' => $this->present($tracker)], 201);
     }
 
@@ -69,5 +90,36 @@ class GpsTrackerController extends Controller
     }
 
     private function owned(GpsTracker $tracker): void { abort_unless($tracker->owner_id === Auth::id(), 404); }
-    private function present(GpsTracker $tracker): array { $last = $tracker->locations->sortByDesc('captured_at_device')->first() ?? $tracker->locations()->latest('captured_at_device')->first(); return ['id'=>$tracker->id,'name'=>$tracker->name,'provider'=>$tracker->provider,'model'=>$tracker->model,'status'=>$tracker->status,'battery_level'=>$tracker->battery_level,'last_position_at'=>$tracker->last_position_at?->toISOString(),'last_seen_at'=>$tracker->last_seen_at?->toISOString(),'last_location'=>$last]; }
+
+    private function capabilities(): array
+    {
+        $isPremium = Auth::user()->hasPremiumAccess();
+
+        return [
+            'is_premium' => $isPremium,
+            'tracker_limit' => $isPremium ? null : 1,
+            'location_interval_hours' => $isPremium ? 0 : (int) config('services.trackers.free_location_interval_hours', 6),
+            'realtime_location' => $isPremium,
+            'location_history' => $isPremium,
+            'safe_zones' => $isPremium,
+            'zone_alerts' => $isPremium,
+        ];
+    }
+
+    private function present(GpsTracker $tracker): array
+    {
+        $last = $tracker->locations()->latest('captured_at_device')->first();
+
+        return [
+            'id'=>$tracker->id,
+            'name'=>$tracker->name,
+            'provider'=>$tracker->provider,
+            'model'=>$tracker->model,
+            'status'=>$tracker->status,
+            'battery_level'=>$tracker->battery_level,
+            'last_position_at'=>$tracker->last_position_at?->toISOString(),
+            'last_seen_at'=>$tracker->last_seen_at?->toISOString(),
+            'last_location'=>$last,
+        ];
+    }
 }

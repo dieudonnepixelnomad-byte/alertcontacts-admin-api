@@ -4,6 +4,7 @@ return [
 
     'trackers' => [
         'ingest_secret' => env('TRACKER_INGEST_SECRET'),
+        'free_location_interval_hours' => (int) env('TRACKER_FREE_LOCATION_INTERVAL_HOURS', 6),
     ],
 
     /*

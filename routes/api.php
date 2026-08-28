@@ -124,16 +124,22 @@ Route::middleware(['auth:sanctum', 'minimum-app-version'])->group(function () {
     // V4 — Abonnements
     Route::get('/subscriptions', [SubscriptionController::class, 'index']);
 
-    Route::prefix('gps-trackers')->middleware('tier:premium')->group(function () {
+    // Gestion de base : un traceur gratuit maximum et dernière position limitée.
+    Route::prefix('gps-trackers')->group(function () {
         Route::get('/', [GpsTrackerController::class, 'index']);
         Route::post('/', [GpsTrackerController::class, 'store']);
-        Route::get('/{tracker}/locations', [GpsTrackerController::class, 'locations']);
-        Route::get('/{tracker}/zones', [GpsTrackerController::class, 'zones']);
-        Route::put('/{tracker}/zones', [GpsTrackerController::class, 'syncZones']);
         Route::post('/{tracker}/activate', [GpsTrackerController::class, 'activate']);
         Route::post('/{tracker}/deactivate', [GpsTrackerController::class, 'deactivate']);
         Route::put('/{tracker}', [GpsTrackerController::class, 'update']);
         Route::delete('/{tracker}', [GpsTrackerController::class, 'destroy']);
+
+        // Fonctions à coût récurrent et à forte valeur : exclusivement Premium.
+        Route::get('/{tracker}/locations', [GpsTrackerController::class, 'locations'])
+            ->middleware('tier:premium');
+        Route::get('/{tracker}/zones', [GpsTrackerController::class, 'zones'])
+            ->middleware('tier:premium');
+        Route::put('/{tracker}/zones', [GpsTrackerController::class, 'syncZones'])
+            ->middleware('tier:premium');
     });
 
     // V4 — Mode invisible (CDC §10.1 — réservé aux tiers payants)
