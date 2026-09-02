@@ -56,6 +56,7 @@ Route::middleware(['auth:sanctum', 'minimum-app-version'])->group(function () {
     // Profil utilisateur
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/user/profile', [UserController::class, 'updateProfile']);
+    Route::put('/user/consents', [UserController::class, 'updateConsents']);
     Route::post('/user/export-data', [UserController::class, 'exportData']);
 
     // Toutes les zones de l'utilisateur

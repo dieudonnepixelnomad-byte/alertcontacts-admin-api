@@ -41,6 +41,10 @@ class User extends Authenticatable implements FilamentUser
         'tier',
         'location_paused',
         'invisible_until',
+        'location_consent',
+        'notification_consent',
+        'analytics_consent',
+        'consents_updated_at',
     ];
 
     /**
@@ -67,6 +71,10 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'quiet_hours_enabled' => 'boolean',
             'location_paused' => 'boolean',
+            'location_consent' => 'boolean',
+            'notification_consent' => 'boolean',
+            'analytics_consent' => 'boolean',
+            'consents_updated_at' => 'datetime',
             'onboarding_completed' => 'boolean',
             'onboarding_data' => 'array',
         ];

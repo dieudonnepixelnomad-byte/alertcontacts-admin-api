@@ -140,4 +140,28 @@ class UserController extends Controller
 
         return response()->json(['message' => "Votre demande d'exportation a été prise en compte. Vous recevrez bientôt un e-mail avec vos données."]);
     }
+
+    public function updateConsents(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'location_consent' => ['sometimes', 'boolean'],
+            'notification_consent' => ['sometimes', 'boolean'],
+            'analytics_consent' => ['sometimes', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $user->fill($data);
+        $user->consents_updated_at = now();
+        $user->save();
+
+        return response()->json([
+            'message' => 'Consentements mis à jour avec succès.',
+            'consents' => [
+                'location_consent' => $user->location_consent,
+                'notification_consent' => $user->notification_consent,
+                'analytics_consent' => $user->analytics_consent,
+                'consents_updated_at' => $user->consents_updated_at?->toISOString(),
+            ],
+        ]);
+    }
 }
