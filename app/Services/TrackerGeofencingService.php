@@ -23,6 +23,10 @@ class TrackerGeofencingService
             if ($inside === $wasInside)
                 continue;
             $event = TrackerSafeZoneEvent::create(['tracker_id' => $tracker->id, 'safe_zone_id' => $zone->id, 'tracker_location_id' => $location->id, 'event_type' => $inside ? 'entry' : 'exit', 'distance_m' => $distance, 'occurred_at' => $location->captured_at_device]);
+            app(PostHogService::class)->capture($tracker->owner, 'tracker_geofence_event_created', [
+                'event_type' => $event->event_type,
+                'notification_enabled' => $inside ? $assignment->notify_entry : $assignment->notify_exit,
+            ]);
             $allowed = $inside ? $assignment->notify_entry : $assignment->notify_exit;
             if ($allowed && $tracker->owner?->fcm_token) {
                 $sent = app(FirebaseNotificationService::class)->sendNotification($tracker->owner->fcm_token, $inside ? "{$tracker->name} est entré dans {$zone->name}" : "{$tracker->name} a quitté {$zone->name}", $inside ? 'Entrée dans une zone de sécurité.' : 'Sortie d’une zone de sécurité.', ['type' => $inside ? 'safe_zone_entry' : 'safe_zone_exit', 'tracker_id' => $tracker->id, 'safe_zone_id' => $zone->id], 'high');

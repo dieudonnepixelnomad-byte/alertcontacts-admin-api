@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Models\GpsTracker;
 use App\Models\SafeZone;
 use App\Models\User;
+use App\Services\PostHogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,6 +13,10 @@ use Illuminate\Support\Facades\DB;
 
 class GpsTrackerController extends Controller
 {
+    public function __construct(private readonly PostHogService $posthog)
+    {
+    }
+
     public function index(): JsonResponse
     {
         return response()->json([
@@ -30,6 +35,11 @@ class GpsTrackerController extends Controller
         $tracker = DB::transaction(function () use ($data) {
             $owner = User::query()->lockForUpdate()->findOrFail(Auth::id());
             if (!$owner->hasPremiumAccess() && $owner->gpsTrackers()->count() >= 1) {
+                $this->posthog->capture($owner, 'premium_action_denied', [
+                    'feature' => 'gps_trackers',
+                    'reason' => 'free_tracker_limit_reached',
+                    'current_tier' => $owner->tier ?? 'free',
+                ]);
                 abort(response()->json([
                     'status' => 'error',
                     'code' => 'GPS_TRACKER_FREE_LIMIT_REACHED',
@@ -40,6 +50,11 @@ class GpsTrackerController extends Controller
 
             return $owner->gpsTrackers()->create($data + ['status' => 'draft']);
         });
+        $this->posthog->capture(Auth::user(), 'tracker_added', [
+            'tracker_status' => $tracker->status,
+            'has_provider' => (bool) $tracker->provider,
+            'has_identifier' => (bool) $tracker->external_identifier,
+        ]);
 
         return response()->json(['data' => $this->present($tracker)], 201);
     }
@@ -57,13 +72,34 @@ class GpsTrackerController extends Controller
     public function activate(GpsTracker $tracker): JsonResponse
     {
         $this->owned($tracker);
-        abort_unless(Auth::user()->hasPremiumAccess(), 403, 'Un abonnement Premium est requis pour activer le suivi GPS.');
-        if (!$tracker->external_identifier) return response()->json(['message'=>'Un identifiant matériel est requis pour activer ce traceur.'], 422);
+        $this->posthog->capture(Auth::user(), 'tracker_activation_started', [
+            'tracker_status' => $tracker->status,
+        ]);
+        if (!Auth::user()->hasPremiumAccess()) {
+            $this->posthog->capture(Auth::user(), 'premium_action_denied', [
+                'feature' => 'gps_tracker_activation',
+                'reason' => 'premium_required',
+                'current_tier' => Auth::user()->tier ?? 'free',
+            ]);
+            $this->posthog->capture(Auth::user(), 'tracker_activation_failed', [
+                'reason' => 'premium_required',
+            ]);
+            abort(403, 'Un abonnement Premium est requis pour activer le suivi GPS.');
+        }
+        if (!$tracker->external_identifier) {
+            $this->posthog->capture(Auth::user(), 'tracker_activation_failed', [
+                'reason' => 'missing_hardware_identifier',
+            ]);
+            return response()->json(['message'=>'Un identifiant matériel est requis pour activer ce traceur.'], 422);
+        }
         $tracker->update(['status'=>'active']);
+        $this->posthog->capture(Auth::user(), 'tracker_activated', [
+            'tracker_status' => 'active',
+        ]);
         return response()->json(['data'=>$this->present($tracker->fresh())]);
     }
 
-    public function deactivate(GpsTracker $tracker): JsonResponse { $this->owned($tracker); $tracker->update(['status'=>'suspended']); return response()->json(['data'=>$this->present($tracker->fresh())]); }
+    public function deactivate(GpsTracker $tracker): JsonResponse { $this->owned($tracker); $tracker->update(['status'=>'suspended']); $this->posthog->capture(Auth::user(), 'tracker_suspended', ['reason' => 'manual_deactivation']); return response()->json(['data'=>$this->present($tracker->fresh())]); }
 
     public function locations(Request $request, GpsTracker $tracker): JsonResponse
     {
@@ -87,6 +123,9 @@ class GpsTrackerController extends Controller
             $tracker->zoneAssignments()->whereNotIn('safe_zone_id', $zoneIds)->delete();
             foreach ($data['zones'] as $zone) $tracker->zoneAssignments()->updateOrCreate(['safe_zone_id'=>$zone['safe_zone_id']], $zone);
         });
+        $this->posthog->capture(Auth::user(), 'tracker_zone_assigned', [
+            'zone_count' => $zoneIds->count(),
+        ]);
         return $this->zones($tracker);
     }
 

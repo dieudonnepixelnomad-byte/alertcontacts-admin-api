@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\SubscriptionAuditLog;
+use App\Services\PostHogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,10 @@ class RevenueCatWebhookController extends Controller
     private const PURCHASE_EVENTS = ['INITIAL_PURCHASE', 'RENEWAL', 'TRIAL_STARTED', 'TRIAL_CONVERTED', 'UNCANCELLATION'];
     private const EXPIRY_EVENTS   = ['EXPIRATION', 'TRIAL_CANCELLED'];
     private const CANCEL_EVENTS   = ['CANCELLATION'];
+
+    public function __construct(private readonly PostHogService $posthog)
+    {
+    }
 
     public function handle(Request $request): JsonResponse
     {
@@ -68,6 +73,10 @@ class RevenueCatWebhookController extends Controller
         if (! $user) {
             Log::warning('RevenueCat webhook: unknown user', ['firebase_uid' => $firebaseUid]);
             $this->audit(null, $event, 'ignored', ['reason' => 'unknown_user']);
+            $this->posthog->capture('server', 'revenuecat_webhook_received', [
+                'event_type' => $event['type'] ?? 'unknown',
+                'outcome' => 'unknown_user',
+            ]);
             return;
         }
 
@@ -91,7 +100,19 @@ class RevenueCatWebhookController extends Controller
             return;
         }
 
-        if ($processed) $this->audit($user, $event, 'processed', [], $previousTier);
+        if ($processed) {
+            $this->audit($user, $event, 'processed', [], $previousTier);
+            $this->posthog->capture($user, 'revenuecat_webhook_received', [
+                'event_type' => $type,
+                'outcome' => 'processed',
+                'product_kind' => str_contains($productId, 'annual') ? 'annual' : 'monthly',
+            ]);
+            $this->posthog->capture($user, 'subscription_tier_updated', [
+                'event_type' => $type,
+                'previous_tier' => $previousTier,
+                'resulting_tier' => $user->fresh()->tier ?? 'free',
+            ]);
+        }
     }
 
     private function activateSubscription(User $user, array $event, string $productId): bool
@@ -103,6 +124,10 @@ class RevenueCatWebhookController extends Controller
                 'event_type' => $event['type'],
             ]);
             $this->audit($user, $event, 'ignored', ['reason' => 'unsupported_product']);
+            $this->posthog->capture($user, 'revenuecat_webhook_received', [
+                'event_type' => $event['type'],
+                'outcome' => 'unsupported_product',
+            ]);
             return false;
         }
 
@@ -167,6 +192,9 @@ class RevenueCatWebhookController extends Controller
 
         $user->update(['tier' => 'free']);
         $user->gpsTrackers()->where('status', 'active')->update(['status' => 'suspended']);
+        $this->posthog->capture($user, 'tracker_suspended', [
+            'reason' => 'subscription_expired',
+        ]);
     }
 
     private function tierFromProductId(string $productId): ?string

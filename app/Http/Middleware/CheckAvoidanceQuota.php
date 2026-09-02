@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Incident;
+use App\Services\PostHogService;
 use App\Services\Routes\AvoidanceQuotaService;
 use Closure;
 use Illuminate\Http\Request;
@@ -37,6 +38,13 @@ class CheckAvoidanceQuota
         if ($check['allowed']) {
             return $next($request);
         }
+
+        app(PostHogService::class)->capture($request->user(), 'premium_action_denied', [
+            'feature' => 'route_avoidance',
+            'reason' => $check['reason'],
+            'used' => $check['used'],
+            'limit' => $check['limit'],
+        ]);
 
         // §10.4 — le mur apparaît au pic de motivation : l'utilisateur voit un
         // incident de gravité Faible ou Moyen sur son trajet et a épuisé ses
