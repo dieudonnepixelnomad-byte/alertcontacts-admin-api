@@ -60,9 +60,7 @@ class PostHogService
             $payload['uuid'] = $eventUuid;
         }
 
-        app()->terminating(function () use ($event, $payload): void {
-            $this->send($event, $payload);
-        });
+        $this->sendOrDefer($event, $payload);
     }
 
     public function setPersonProperties(User|string|null $user, array $properties): void
@@ -89,18 +87,36 @@ class PostHogService
             ],
         ];
 
-        app()->terminating(function () use ($payload): void {
-            $this->send('backend_person_properties_updated', $payload);
+        $this->sendOrDefer('backend_person_properties_updated', $payload);
+    }
+
+    private function sendOrDefer(string $event, array $payload): void
+    {
+        if (app()->runningInConsole()) {
+            $this->send($event, $payload);
+            return;
+        }
+
+        app()->terminating(function () use ($event, $payload): void {
+            $this->send($event, $payload);
         });
     }
 
     private function send(string $event, array $payload): void
     {
         try {
-            Http::baseUrl($this->host())
+            $response = Http::baseUrl($this->host())
                 ->acceptJson()
                 ->timeout(2)
                 ->post('/capture/', $payload);
+
+            if ($response->failed()) {
+                Log::warning('PostHog capture failed with HTTP response', [
+                    'event' => $event,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+            }
         } catch (\Throwable $e) {
             Log::debug('PostHog capture failed', [
                 'event' => $event,

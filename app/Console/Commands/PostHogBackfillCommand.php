@@ -51,6 +51,11 @@ class PostHogBackfillCommand extends Command
             return self::SUCCESS;
         }
 
+        if ((string) config('services.posthog.project_api_key', '') === '') {
+            $this->error('POSTHOG_PROJECT_API_KEY is missing. Backfill cannot send events.');
+            return self::FAILURE;
+        }
+
         if (! $this->option('force') && ! $this->confirm('Send these historical analytics events to PostHog?')) {
             $this->warn('Backfill cancelled.');
             return self::FAILURE;
@@ -64,7 +69,7 @@ class PostHogBackfillCommand extends Command
         $this->backfillRoutes($posthog, $since);
         $this->backfillSubscriptions($posthog, $since);
 
-        $this->info('PostHog backfill queued. Laravel will send events during command termination.');
+        $this->info('PostHog backfill sent. Check PostHog ingestion and Laravel logs for HTTP failures.');
 
         return self::SUCCESS;
     }
