@@ -7,6 +7,7 @@ use App\Jobs\SendInvitationNotificationJob;
 use App\Models\Invitation;
 use App\Models\Relationship;
 use App\Models\User;
+use App\Services\PostHogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -75,6 +76,14 @@ class InvitationController extends Controller
                 SendInvitationNotificationJob::dispatch($invitee, $user)
                     ->onQueue('invitations');
             }
+
+            app(PostHogService::class)->capture($user, 'contact_invited', [
+                'share_level' => $invitation->default_share_level,
+                'has_suggested_zones' => ! empty($invitation->suggested_zones),
+                'requires_pin' => $invitation->pin !== null,
+                'expires_in_hours' => $expiresInHours,
+                'invitee_known' => $invitee !== null,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -295,6 +304,26 @@ class InvitationController extends Controller
                 $request->input('share_level')
             );
 
+                $posthog = app(PostHogService::class);
+                $posthog->capture($inviter, 'contact_invitation_accepted', [
+                    'role' => 'inviter',
+                    'share_level' => $invitation->default_share_level ?? 'realtime',
+                    'reciprocal_relation_created' => true,
+                ]);
+                $posthog->capture($invitee, 'contact_invitation_accepted', [
+                    'role' => 'invitee',
+                    'share_level' => $request->input('share_level'),
+                    'reciprocal_relation_created' => true,
+                ]);
+                $posthog->capture($inviter, 'aha_1_contact_accepted', [
+                    'role' => 'inviter',
+                ]);
+                $posthog->capture($invitee, 'aha_1_contact_accepted', [
+                    'role' => 'invitee',
+                ]);
+                $this->syncContactPersonProperties($inviter);
+                $this->syncContactPersonProperties($invitee);
+
                 return response()->json([
                 'success' => true,
                 'message' => 'Invitation acceptée avec succès',
@@ -324,6 +353,31 @@ class InvitationController extends Controller
             'limit' => $limit,
             'user_id' => $user->id,
         ], 403);
+    }
+
+    private function syncContactPersonProperties(User $user): void
+    {
+        $contactsCount = $user->myContacts()->count();
+
+        app(PostHogService::class)->setPersonProperties($user, [
+            'has_active_contact' => $contactsCount > 0,
+            'contacts_count_bucket' => $this->countBucket($contactsCount),
+        ]);
+    }
+
+    private function countBucket(int $count): string
+    {
+        if ($count === 0) {
+            return '0';
+        }
+        if ($count === 1) {
+            return '1';
+        }
+        if ($count <= 3) {
+            return '2-3';
+        }
+
+        return '4+';
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Services\Routes;
 
 use App\Models\Route;
 use App\Models\User;
+use App\Services\PostHogService;
 use App\Support\FlexiblePolyline;
 use App\Support\Geo;
 use Illuminate\Support\Collection;
@@ -31,8 +32,17 @@ class RouteHistoryService
         }
 
         $route->update($attributes);
+        $freshRoute = $route->refresh();
 
-        return $route->refresh();
+        if ($status === 'active') {
+            app(PostHogService::class)->capture($freshRoute->user, 'route_started', [
+                'transport_mode' => $freshRoute->transport_mode,
+                'avoidance_applied' => (bool) $freshRoute->avoidance_applied,
+                'avoidance_partial' => (bool) $freshRoute->avoidance_partial,
+            ]);
+        }
+
+        return $freshRoute;
     }
 
     /**

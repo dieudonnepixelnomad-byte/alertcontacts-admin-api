@@ -11,6 +11,7 @@ use App\Models\SafeZoneAssignment;
 use App\Models\Relationship;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\PostHogService;
 use MatanYadaev\EloquentSpatial\Objects\Point;
 use MatanYadaev\EloquentSpatial\Objects\Polygon;
 use MatanYadaev\EloquentSpatial\Objects\LineString;
@@ -274,6 +275,21 @@ class SafeZonesController extends Controller
 
             DB::commit();
 
+            $posthog = app(PostHogService::class);
+            $safeZonesCount = SafeZone::where('owner_id', $user->id)
+                ->where('is_active', true)
+                ->count();
+            $posthog->capture($user, 'zone_created', [
+                'zone_type' => $safeZone->isCircle() ? 'circle' : 'polygon',
+                'icon' => $safeZone->icon,
+                'radius_bucket' => $this->radiusBucket((int) ($safeZone->radius_m ?? 0)),
+                'has_contacts' => ! empty($assignedContacts),
+                'assigned_contacts_count_bucket' => $this->countBucket(count($assignedContacts)),
+            ]);
+            $posthog->setPersonProperties($user, [
+                'safe_zones_count_bucket' => $this->countBucket($safeZonesCount),
+            ]);
+
             // Préparer la réponse
             $response = [
                 'id' => $safeZone->id,
@@ -475,6 +491,36 @@ class SafeZonesController extends Controller
         }
 
         return $assignedContacts;
+    }
+
+    private function radiusBucket(int $radius): string
+    {
+        if ($radius < 100) {
+            return '<100m';
+        }
+        if ($radius <= 200) {
+            return '100-200m';
+        }
+        if ($radius <= 500) {
+            return '201-500m';
+        }
+
+        return '>500m';
+    }
+
+    private function countBucket(int $count): string
+    {
+        if ($count === 0) {
+            return '0';
+        }
+        if ($count === 1) {
+            return '1';
+        }
+        if ($count <= 3) {
+            return '2-3';
+        }
+
+        return '4+';
     }
 
     /**

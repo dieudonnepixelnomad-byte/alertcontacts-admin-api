@@ -9,6 +9,7 @@ use App\Models\UserActivity;
 use App\Models\SafeZone;
 use App\Models\DangerZone;
 use App\Services\ActivityLogService;
+use App\Services\PostHogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -16,11 +17,10 @@ use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    protected ActivityLogService $activityLogService;
-
-    public function __construct(ActivityLogService $activityLogService)
-    {
-        $this->activityLogService = $activityLogService;
+    public function __construct(
+        protected ActivityLogService $activityLogService,
+        private readonly PostHogService $posthog,
+    ) {
     }
 
     /**
@@ -119,6 +119,25 @@ class AuthController extends Controller
 
             // Enregistrer l'activité de connexion
             $this->activityLogService->logLogin($user->id, $request);
+            $this->posthog->setPersonProperties($user, [
+                'subscription_tier' => $user->tier ?? 'free',
+                'has_active_contact' => $user->myContacts()->exists(),
+                'contacts_count_bucket' => $this->countBucket($user->myContacts()->count()),
+                'safe_zones_count_bucket' => $this->countBucket(
+                    SafeZone::where('owner_id', $user->id)->where('is_active', true)->count()
+                ),
+                'danger_zones_count_bucket' => $this->countBucket(
+                    DangerZone::where('reported_by', $user->id)->count()
+                ),
+                'is_paying' => $user->isPaidTier(),
+                'has_premium_access' => $user->hasPremiumAccess(),
+                'account_created' => $accountCreated,
+                'auth_provider' => $user->provider ?? 'firebase',
+            ]);
+            $this->posthog->capture($user, 'backend_login_success', [
+                'method' => $user->provider ?? 'firebase',
+                'account_created' => $accountCreated,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -165,6 +184,21 @@ class AuthController extends Controller
                 'message' => 'Login not implemented yet'
             ]
         ], 501);
+    }
+
+    private function countBucket(int $count): string
+    {
+        if ($count === 0) {
+            return '0';
+        }
+        if ($count === 1) {
+            return '1';
+        }
+        if ($count <= 3) {
+            return '2-3';
+        }
+
+        return '4+';
     }
 
     /**

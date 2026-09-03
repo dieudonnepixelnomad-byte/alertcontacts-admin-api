@@ -11,6 +11,7 @@ use App\Services\Routing\DTO\RouteAlternative;
 use App\Services\Routing\DTO\RouteRequest;
 use App\Services\Routing\DTO\RouteResult;
 use App\Services\Routing\RoutingProvider;
+use App\Services\PostHogService;
 use App\Support\FlexiblePolyline;
 use App\Support\Geo;
 use Illuminate\Support\Collection;
@@ -68,6 +69,15 @@ class RoutePlanningService
 
         $this->recordHits($route, $hits, 'pre_departure');
 
+        app(PostHogService::class)->capture($user, 'route_previewed', [
+            'transport_mode' => $route->transport_mode,
+            'incident_count' => $hits->count(),
+            'incident_count_bucket' => $this->countBucket($hits->count()),
+            'destination_inside' => $this->destinationInsideAnyHit($route, $hits),
+            'distance_bucket' => $this->distanceBucket((int) $route->distance_m),
+            'duration_bucket' => $this->durationBucket((int) $route->duration_s),
+        ]);
+
         return [
             'route'              => $route,
             'result'             => $result,
@@ -123,6 +133,21 @@ class RoutePlanningService
         $best = $evaluations[0];
 
         $this->persistAvoidance($route, $best, $incidentIds);
+
+        app(PostHogService::class)->capture($route->user, 'route_avoidance_requested', [
+            'incident_count' => count($incidentIds),
+            'incident_count_bucket' => $this->countBucket(count($incidentIds)),
+            'transport_mode' => $route->transport_mode,
+            'avoidance_partial' => (bool) $best['partial'],
+        ]);
+
+        if ($best['partial']) {
+            app(PostHogService::class)->capture($route->user, 'route_avoidance_partial', [
+                'incident_count' => count($incidentIds),
+                'incident_count_bucket' => $this->countBucket(count($incidentIds)),
+                'transport_mode' => $route->transport_mode,
+            ]);
+        }
 
         return [
             'result'        => $result,
@@ -285,5 +310,47 @@ class RoutePlanningService
             'duration_s' => $a->durationS,
             'label'      => $a->label(),
         ], $result->alternatives);
+    }
+
+    private function countBucket(int $count): string
+    {
+        if ($count <= 1) {
+            return (string) $count;
+        }
+        if ($count <= 3) {
+            return '2-3';
+        }
+
+        return '4+';
+    }
+
+    private function distanceBucket(int $meters): string
+    {
+        if ($meters < 1000) {
+            return '<1km';
+        }
+        if ($meters < 5000) {
+            return '1-5km';
+        }
+        if ($meters < 15000) {
+            return '5-15km';
+        }
+
+        return '>15km';
+    }
+
+    private function durationBucket(int $seconds): string
+    {
+        if ($seconds < 300) {
+            return '<5min';
+        }
+        if ($seconds < 900) {
+            return '5-15min';
+        }
+        if ($seconds < 1800) {
+            return '15-30min';
+        }
+
+        return '>30min';
     }
 }

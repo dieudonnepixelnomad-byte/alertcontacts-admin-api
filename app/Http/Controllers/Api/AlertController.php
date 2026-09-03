@@ -7,6 +7,7 @@ use App\Models\DangerZone;
 use App\Models\DangerZoneConfirmation;
 use App\Models\DangerZoneReport;
 use App\Services\FirebaseNotificationService;
+use App\Services\PostHogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -138,6 +139,14 @@ class AlertController extends Controller
             (new FirebaseNotificationService())->sendCommunityAlert($alert);
         })->onQueue('alerts');
 
+        app(PostHogService::class)->capture(Auth::user(), 'community_alert_created', [
+            'gravity' => $alert->severity,
+            'type' => $alert->danger_type,
+            'visibility' => $alert->visibility ?? 'public',
+            'is_anonymous' => (bool) ($alert->is_anonymous ?? true),
+            'radius_bucket' => $this->radiusBucket((int) $alert->radius_m),
+        ]);
+
         return response()->json(['status' => 'ok', 'data' => $this->formatAlert($alert)], 201);
     }
 
@@ -147,12 +156,19 @@ class AlertController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Alerte inactive'], 404);
         }
 
-        DangerZoneConfirmation::firstOrCreate(
+        $confirmation = DangerZoneConfirmation::firstOrCreate(
             ['danger_zone_id' => $alert->id, 'user_id' => Auth::id()],
             ['confirmed_at' => now()]
         );
 
         $alert->increment('confirmations');
+
+        if ($confirmation->wasRecentlyCreated) {
+            app(PostHogService::class)->capture(Auth::user(), 'community_alert_confirmed', [
+                'gravity' => $alert->severity,
+                'type' => $alert->danger_type,
+            ]);
+        }
 
         return response()->json(['status' => 'ok', 'confirmations' => $alert->fresh()->confirmations]);
     }
@@ -216,5 +232,20 @@ class AlertController extends Controller
             'other'              => 'Incident',
         ];
         return ($types[$type] ?? 'Incident') . ' signalé';
+    }
+
+    private function radiusBucket(int $radius): string
+    {
+        if ($radius < 100) {
+            return '<100m';
+        }
+        if ($radius <= 200) {
+            return '100-200m';
+        }
+        if ($radius <= 500) {
+            return '201-500m';
+        }
+
+        return '>500m';
     }
 }

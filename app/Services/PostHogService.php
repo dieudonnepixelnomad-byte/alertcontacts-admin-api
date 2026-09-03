@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use DateTimeInterface;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -30,27 +31,66 @@ class PostHogService
         'payload',
     ];
 
-    public function capture(User|string|null $user, string $event, array $properties = []): void
-    {
+    public function capture(
+        User|string|null $user,
+        string $event,
+        array $properties = [],
+        ?DateTimeInterface $timestamp = null,
+        ?string $eventUuid = null,
+    ): void {
         $apiKey = (string) config('services.posthog.project_api_key', '');
-        if ($apiKey === '') {
+        if ($apiKey === '' || ! $this->hasAnalyticsConsent($user)) {
             return;
         }
-
-        $distinctId = $user instanceof User ? (string) $user->id : (string) ($user ?: 'server');
 
         $payload = [
             'api_key' => $apiKey,
             'event' => $event,
-            'distinct_id' => $distinctId,
+            'distinct_id' => $this->distinctId($user),
             'properties' => $this->sanitize($properties + [
                 'source' => 'laravel',
                 'environment' => app()->environment(),
             ]),
         ];
 
+        if ($timestamp !== null) {
+            $payload['timestamp'] = $timestamp->format(DATE_ATOM);
+        }
+        if ($eventUuid !== null) {
+            $payload['uuid'] = $eventUuid;
+        }
+
         app()->terminating(function () use ($event, $payload): void {
             $this->send($event, $payload);
+        });
+    }
+
+    public function setPersonProperties(User|string|null $user, array $properties): void
+    {
+        $apiKey = (string) config('services.posthog.project_api_key', '');
+        if ($apiKey === '' || ! $this->hasAnalyticsConsent($user)) {
+            return;
+        }
+
+        $personProperties = $this->sanitize($properties);
+        if ($personProperties === []) {
+            return;
+        }
+
+        $payload = [
+            'api_key' => $apiKey,
+            'event' => 'backend_person_properties_updated',
+            'distinct_id' => $this->distinctId($user),
+            'properties' => [
+                '$set' => $personProperties,
+                '$update_person_last_seen_at' => false,
+                'source' => 'laravel',
+                'environment' => app()->environment(),
+            ],
+        ];
+
+        app()->terminating(function () use ($payload): void {
+            $this->send('backend_person_properties_updated', $payload);
         });
     }
 
@@ -73,6 +113,24 @@ class PostHogService
     {
         $host = rtrim((string) config('services.posthog.host', ''), '/');
         return $host !== '' ? $host : 'https://us.i.posthog.com';
+    }
+
+    private function distinctId(User|string|null $user): string
+    {
+        if ($user instanceof User) {
+            return (string) ($user->firebase_uid ?: $user->id);
+        }
+
+        return (string) ($user ?: 'server');
+    }
+
+    private function hasAnalyticsConsent(User|string|null $user): bool
+    {
+        if (! $user instanceof User) {
+            return true;
+        }
+
+        return $user->analytics_consent !== false;
     }
 
     private function sanitize(array $properties): array

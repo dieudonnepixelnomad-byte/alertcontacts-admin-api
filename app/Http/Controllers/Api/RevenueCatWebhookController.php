@@ -102,15 +102,23 @@ class RevenueCatWebhookController extends Controller
 
         if ($processed) {
             $this->audit($user, $event, 'processed', [], $previousTier);
+            $resultingTier = $user->fresh()->tier ?? 'free';
+            $billing = str_contains($productId, 'annual') ? 'annual' : 'monthly';
             $this->posthog->capture($user, 'revenuecat_webhook_received', [
                 'event_type' => $type,
                 'outcome' => 'processed',
-                'product_kind' => str_contains($productId, 'annual') ? 'annual' : 'monthly',
+                'product_kind' => $billing,
             ]);
             $this->posthog->capture($user, 'subscription_tier_updated', [
                 'event_type' => $type,
                 'previous_tier' => $previousTier,
-                'resulting_tier' => $user->fresh()->tier ?? 'free',
+                'resulting_tier' => $resultingTier,
+            ]);
+            $this->captureProductSubscriptionEvent($user, $type, $resultingTier, $billing);
+            $this->posthog->setPersonProperties($user, [
+                'subscription_tier' => $resultingTier,
+                'is_paying' => $user->fresh()->isPaidTier(),
+                'has_premium_access' => $user->fresh()->hasPremiumAccess(),
             ]);
         }
     }
@@ -201,6 +209,39 @@ class RevenueCatWebhookController extends Controller
     {
         $products = config('services.revenuecat.products', []);
         return in_array($productId, $products, true) ? 'premium' : null;
+    }
+
+    private function captureProductSubscriptionEvent(User $user, string $type, string $tier, string $billing): void
+    {
+        $properties = [
+            'tier' => $tier,
+            'billing' => $billing,
+            'revenuecat_event_type' => $type,
+        ];
+
+        if ($type === 'TRIAL_STARTED') {
+            $this->posthog->capture($user, 'subscription_trial_started', $properties);
+            return;
+        }
+
+        if (in_array($type, ['INITIAL_PURCHASE', 'TRIAL_CONVERTED', 'PRODUCT_CHANGE', 'UNCANCELLATION'], true)) {
+            $this->posthog->capture($user, 'subscription_purchased', $properties);
+            return;
+        }
+
+        if ($type === 'RENEWAL') {
+            $this->posthog->capture($user, 'subscription_renewed', $properties);
+            return;
+        }
+
+        if ($type === 'CANCELLATION') {
+            $this->posthog->capture($user, 'subscription_cancelled', $properties);
+            return;
+        }
+
+        if (in_array($type, ['EXPIRATION', 'TRIAL_CANCELLED'], true)) {
+            $this->posthog->capture($user, 'subscription_expired', $properties);
+        }
     }
 
     private function isAuthorized(Request $request): bool

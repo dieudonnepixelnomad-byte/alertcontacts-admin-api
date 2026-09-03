@@ -6,6 +6,7 @@ use App\Http\Resources\IncidentResource;
 use App\Jobs\IncidentClusteringJob;
 use App\Models\AlertReport;
 use App\Models\User;
+use App\Services\PostHogService;
 
 /**
  * Soumission d'un signalement — CDC V4.1 §8.2
@@ -50,6 +51,16 @@ class ReportSubmissionService
         IncidentClusteringJob::dispatch($report->id, $result['merged'], $result['routing_changed'])
             ->afterCommit();
 
+        app(PostHogService::class)->capture($user, 'community_alert_created', [
+            'gravity' => $severity,
+            'type' => $report->type,
+            'visibility' => $report->visibility ?? 'public',
+            'was_merged' => (bool) $result['merged'],
+            'routing_changed' => (bool) $result['routing_changed'],
+            'was_moving' => (bool) $report->was_moving,
+            'gps_accuracy_bucket' => $this->accuracyBucket($report->gps_accuracy_m),
+        ]);
+
         return [
             'report_id'   => $report->id,
             'incident_id' => $incident->id,
@@ -78,5 +89,23 @@ class ReportSubmissionService
                 ? (new IncidentResource($incident))->resolve(request())
                 : null,
         ];
+    }
+
+    private function accuracyBucket(int|float|null $accuracy): string
+    {
+        if ($accuracy === null) {
+            return 'unknown';
+        }
+        if ($accuracy <= 10) {
+            return '<=10m';
+        }
+        if ($accuracy <= 30) {
+            return '11-30m';
+        }
+        if ($accuracy <= 100) {
+            return '31-100m';
+        }
+
+        return '>100m';
     }
 }
